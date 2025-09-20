@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -10,8 +11,10 @@ type Catch = { user_id:string; pokemon_id:number; caught_shiny:boolean }
 type User = { id:string; email:string|null }
 type Profile = { id:string; username:string; is_public:boolean }
 
-export default function PublicProfile({ params }: { params: { username: string }}) {
-  const uname = params.username.toLowerCase()
+export default function PublicProfile() {
+  const params = useParams<{ username: string }>()
+  const uname = String(params.username || '').toLowerCase()
+
   const [viewer, setViewer] = useState<User|null>(null)
   const [profile, setProfile] = useState<Profile|null>(null)
   const [catches, setCatches] = useState<Catch[]>([])
@@ -23,7 +26,8 @@ export default function PublicProfile({ params }: { params: { username: string }
   }, [])
 
   useEffect(() => {
-    (async () => {
+    if (!uname) return
+    ;(async () => {
       const { data: prof } = await supabase.from('profiles')
         .select('id,username,is_public').ilike('username', uname).maybeSingle()
       if (!prof) { setProfile(null); return }
