@@ -21,14 +21,15 @@ export default function Home() {
 
   // Ensure logged in
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
-        window.location.href = '/login'
-      } else {
-        setUser({ id: data.user.id, email: data.user.email ?? null })
-      }
-    })
-  }, [])
+  supabase.auth.getUser().then(async ({ data }) => {
+    if (!data.user) { window.location.href = '/login'; return }
+    const uid = data.user.id
+    setUser({ id: uid, email: data.user.email ?? null })
+    const { data: prof } = await supabase.from('profiles').select('username').eq('id', uid).single()
+    if (!prof?.username) window.location.href = '/settings'
+  })
+}, [])
+
 
   // Load profiles + catches
   useEffect(() => {

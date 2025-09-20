@@ -2,42 +2,57 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+type Profile = { id: string; email: string|null; username: string|null; is_public: boolean }
+
 export default function Settings() {
-  const [me, setMe] = useState<{id:string,email:string|null}|null>(null)
-  const [partnerEmail, setPartnerEmail] = useState('')
+  const [me, setMe] = useState<Profile|null>(null)
+  const [username, setUsername] = useState('')
+  const [isPublic, setIsPublic] = useState(true)
   const [msg, setMsg] = useState<string| null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) window.location.href = '/login'
-      else setMe({ 
-        id: data.user.id, 
-        email: data.user.email ?? null
-    })
-    })
+    (async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) { window.location.href = '/login'; return }
+      const uid = data.user.id
+      const { data: prof } = await supabase.from('profiles')
+        .select('id,email,username,is_public').eq('id', uid).single()
+      if (prof) {
+        setMe(prof as Profile)
+        setUsername((prof as Profile).username ?? '')
+        setIsPublic((prof as Profile).is_public)
+      }
+    })()
   }, [])
 
-  async function pair() {
-    setMsg(null)
+  async function save() {
     if (!me) return
-    // look up partner by email in profiles
-    const { data: profiles } = await supabase.from('profiles').select('id,email').ilike('email', partnerEmail)
-    const partner = profiles?.[0]
-    if (!partner) { setMsg('No user with that email (they must log in once first).'); return }
-    // insert pair; order doesn't matter
-    const { error } = await supabase.from('pairs').insert({ a: me.id, b: partner.id })
-    if (error) setMsg(error.message)
-    else setMsg('Paired! Go back to / and filters will use this partner.')
+    setMsg(null)
+    // simple client-side validation to match DB regex
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+      setMsg('Username must be 3–20 chars: a–z, 0–9, underscore.')
+      return
+    }
+    const { error } = await supabase.from('profiles')
+      .update({ username, is_public: isPublic })
+      .eq('id', me.id)
+    setMsg(error ? error.message : 'Saved!')
   }
 
   return (
     <main className="max-w-lg mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Settings</h1>
-      <p className="mb-2">You: {me?.email}</p>
-      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-        <label className="block text-sm">Partner email</label>
-        <input className="w-full border rounded-lg p-2" value={partnerEmail} onChange={e=>setPartnerEmail(e.target.value)} placeholder="partner@example.com" />
-        <button onClick={pair} className="rounded-xl bg-black text-white px-4 py-2">Save pairing</button>
+      <div className="card space-y-4">
+        <div>
+          <label className="block text-sm text-dim mb-1">Username</label>
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="ash_ketchum"/>
+          <p className="text-xs text-dim mt-1">Only lowercase letters, numbers, and underscore.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="pub" type="checkbox" checked={isPublic} onChange={e=>setIsPublic(e.target.checked)} />
+          <label htmlFor="pub">Public profile (others can view your shinies)</label>
+        </div>
+        <button onClick={save} className="btn">Save</button>
         {msg && <p className="text-sm">{msg}</p>}
       </div>
     </main>
