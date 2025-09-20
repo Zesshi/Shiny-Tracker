@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 
@@ -27,7 +28,6 @@ export default function PublicProfile({ params }: { params: { username: string }
         .select('id,username,is_public').ilike('username', uname).maybeSingle()
       if (!prof) { setProfile(null); return }
       setProfile(prof as Profile)
-      // fetch their catches (RLS lets you read if is_public or you are them)
       const { data: cats } = await supabase.from('catches')
         .select('user_id,pokemon_id,caught_shiny').eq('user_id', prof.id)
       setCatches((cats || []) as Catch[])
@@ -39,7 +39,18 @@ export default function PublicProfile({ params }: { params: { username: string }
     catches.some(c => c.pokemon_id === pokeId && c.caught_shiny)
 
   if (profile === null) {
-    return <main className="max-w-4xl mx-auto p-4"><h1 className="text-2xl font-bold">User not found</h1></main>
+    return (
+      <main className="max-w-4xl mx-auto p-4">
+        <h1 className="text-2xl font-bold">User not found</h1>
+        <p className="mt-2">
+          Go back to{' '}
+          <Link href="/" className="underline">
+            home
+          </Link>
+          .
+        </p>
+      </main>
+    )
   }
 
   return (
@@ -50,7 +61,7 @@ export default function PublicProfile({ params }: { params: { username: string }
           <span className="pill">This profile is private</span>
         )}
         {isOwner && (
-          <a href="/settings" className="pill">Edit profile</a>
+          <Link href="/settings" className="pill">Edit profile</Link>
         )}
       </header>
 
@@ -70,11 +81,10 @@ export default function PublicProfile({ params }: { params: { username: string }
               </div>
               <div className="text-center text-xs mt-1">{p.name}</div>
 
-              {/* If it's your own page, keep the toggle, else show a static bar */}
               {isOwner ? (
-                <a href="/" className="w-full rounded-xl py-2 text-sm font-semibold bg-[#0b1220] text-gray-300 text-center">
+                <Link href="/" className="w-full rounded-xl py-2 text-sm font-semibold bg-[#0b1220] text-gray-300 text-center">
                   Manage on Home
-                </a>
+                </Link>
               ) : (
                 <div className={`w-full rounded-xl py-2 text-sm font-semibold text-center ${has ? 'bg-green-600 text-white' : 'bg-[#0b1220] text-gray-300'}`}>
                   {has ? 'Shiny caught' : 'Missing'}
