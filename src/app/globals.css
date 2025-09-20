@@ -1,0 +1,170 @@
+/* Tailwind base/utilities still get injected by Next/Tailwind */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Theme tokens === */
+:root{
+  --bg: #0d1117;          /* app background */
+  --bg-elev: #161b22;     /* card/header background */
+  --chip: #222833;        /* pill backgrounds */
+  --accent: #ffcb05;      /* pikachu yellow */
+  --accent-2: #2a75bb;    /* pokeball blue */
+  --text: #e6edf3;        /* main text */
+  --text-dim: #9aa4af;    /* dim text */
+  --border: #242b33;      /* subtle borders */
+}
+
+/* === Base === */
+html,body{
+  height:100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection{ background: rgba(255,203,5,0.25); }
+
+/* === Scrollbar (minimal, dark) === */
+*::-webkit-scrollbar{ width:8px; height:8px; }
+*::-webkit-scrollbar-track{ background: var(--bg); }
+*::-webkit-scrollbar-thumb{
+  background: var(--accent-2);
+  border-radius: 9999px;
+}
+
+/* === Helpful overrides for existing Tailwind classes in your JSX === */
+/* Cards/header that used bg-white/bg-gray-50 now look dark */
+.bg-white{ background-color: var(--bg-elev) !important; }
+.bg-gray-50{ background-color: var(--bg) !important; }
+
+/* Pills you used in the header */
+.bg-gray-200{ background-color: var(--chip) !important; color: var(--text); }
+
+/* Very light borders -> subtle dark borders */
+.border-gray-100{ border-color: var(--border) !important; }
+
+/* Missing-dot gray works better on dark */
+.bg-gray-300{ background-color: #2b2f36 !important; }
+
+/* === Inputs & selects === */
+input, select{
+  background: #0f1520;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  outline: none;
+  transition: box-shadow .2s, border-color .2s, background .2s;
+}
+input::placeholder{ color: var(--text-dim); }
+input:focus, select:focus{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255,203,5,0.2);
+}
+
+/* === Buttons (generic) === */
+button{
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+button:active{ transform: translateY(1px); }
+
+/* your “Mark shiny” / “Shiny caught” buttons use bg-black/text-white already.
+   Make bg-black look nicer in dark mode: */
+.bg-black{ background-color: #0b1220 !important; }
+.bg-black:hover{ background-color: #0d1528 !important; }
+
+/* when marked shiny we use bg-green-600; add a hover lift */
+.bg-green-600:hover{ filter: brightness(1.05); }
+
+/* === Cards (list items) === */
+.poke-card{
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+}
+.poke-card:hover{
+  transform: none;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.45);
+  border-color: #2f3742;
+}
+
+.poke-grid{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* === Header bar (sticky look) === */
+.poke-header{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(180deg, rgba(13,17,23,0.95) 0%, rgba(13,17,23,0.75) 100%);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* === Pills (You/Partner chips) === */
+.pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chip);
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* === Accents for headings === */
+h1{
+  font-weight: 900;
+  letter-spacing: .4px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+}
+h1::after{
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 8px;
+  background: radial-gradient(circle at 30% 30%, var(--accent), #ffb800);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255,203,5,.7);
+}
+
+/* === Tiny helper for the two status dots container === */
+.dot-legend{
+  display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-dim);
+}
+.dot-legend .dot{
+  width:10px; height:10px; border-radius:999px; display:inline-block;
+}
+
+/* === Sprite image polish === */
+.poke-sprite{
+  image-rendering: pixelated;           /* retro crisp look */
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+}
+
+/* === Link color === */
+a{ color: var(--accent-2); }
+a:hover{ text-decoration: underline; }
+
+/* === Optional “Pokémon Solid” font support ===
+   Add this in your <head> (layout.tsx) if you want the iconic look:
+   <link href="https://fonts.cdnfonts.com/css/pokemon-solid" rel="stylesheet" />
+   Then set: h1{ font-family: 'Pokemon Solid', ui-sans-serif, system-ui; }
+*/
