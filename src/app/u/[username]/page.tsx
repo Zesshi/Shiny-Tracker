@@ -15,6 +15,15 @@ type Profile = { id: string; username: string; is_public: boolean }
 export default function PublicProfile() {
     const params = useParams<{ username: string }>()
     const uname = String(params.username || '').toLowerCase()
+    const [q, setQ] = useState('')
+    const filtered = useMemo(() => {
+        const needle = q.trim().toLowerCase()
+        return (data as Pokemon[]).filter(p =>
+            !needle ||
+            p.name.toLowerCase().includes(needle) ||
+            p.id.toString() === needle.replace('#', '')
+        )
+    }, [q])
 
     const [viewer, setViewer] = useState<User | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
@@ -67,6 +76,13 @@ export default function PublicProfile() {
         <main className="max-w-7xl mx-auto p-4">
             <header className="poke-header flex items-center justify-between gap-2 mb-4 p-2">
                 <h1 className="text-2xl font-bold">@{profile.username}</h1>
+                <input
+                    className="border p-1"
+                    placeholder="Search name or #id"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                />
+
                 <div className="flex items-center gap-2">
                     <span className="pill">{caughtCount}/1025 caught</span>
                     {!profile.is_public && !isOwner && (<span className="pill">This profile is private</span>)}
@@ -74,10 +90,11 @@ export default function PublicProfile() {
             </header>
 
             <ul className="poke-grid">
-                {(data as Pokemon[]).map(p => {
+                {filtered.map(p => {
                     const has = status(p.id)
                     return (
                         <li key={p.id} className={`poke-card flex flex-col items-center justify-between ${has ? 'shine' : ''}`}>
+
                             <div className="w-full flex items-center justify-between mb-1">
                                 <span className="text-[11px] font-medium opacity-80">#{p.id.toString().padStart(4, '0')}</span>
                                 <span title="Owner" className={`w-2.5 h-2.5 rounded-full ${has ? 'bg-green-500' : 'bg-gray-300'}`} />

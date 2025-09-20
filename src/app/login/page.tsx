@@ -59,6 +59,7 @@ export default function Login() {
             const { data, error: upErr } = await supabase.auth.signUp({
                 email: email.trim(),
                 password,
+                options: { data: { username: uname } }
             })
             if (upErr) { setMsg(upErr.message); return }
 
