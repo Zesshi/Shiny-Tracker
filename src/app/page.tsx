@@ -7,6 +7,7 @@ import data from '@/data/pokemon.json'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
+type Filter = 'all' | 'mine-missing' | 'partner-missing' | 'both-missing'
 type User = { id: string; email: string | null }
 type Pair = { a: string; b: string }
 
@@ -15,7 +16,7 @@ export default function Home() {
   const [users, setUsers] = useState<User[]>([])
   const [catches, setCatches] = useState<Catch[]>([])
   const [partnerId, setPartnerId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'mine-missing' | 'partner-missing' | 'both-missing'>('all')
+  const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
 
   // Ensure logged in
@@ -127,7 +128,7 @@ export default function Home() {
             <span><span className="dot" style={{ background: '#22c55e' }} /> caught</span>
             <span><span className="dot" style={{ background: '#2b2f36' }} /> missing</span>
           </div>
-          <select className="border rounded-lg p-1" value={filter} onChange={e => setFilter(e.target.value as any)}>
+          <select className="border rounded-lg p-1" value={filter} onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>setFilter(e.target.value as Filter)}>
             <option value="all">All</option>
             <option value="mine-missing">Mine missing</option>
             <option value="partner-missing">Partner missing</option>
