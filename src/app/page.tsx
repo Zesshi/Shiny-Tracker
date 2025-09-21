@@ -153,7 +153,7 @@ export default function Home() {
               </div>
 
               <div className="flex justify-center items-center h-20">
-                <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" />
+                <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" unoptimized/>
               </div>
 
               <div className="text-center text-[11px] mt-1">{p.name}</div>
