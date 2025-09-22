@@ -1,37 +1,32 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
-
+import { GENS } from '@/lib/gens'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
 type User = { id: string; email: string | null }
 type Profile = { id: string; username: string; is_public: boolean }
+type Filter = 'all' | 'caught' | 'missing'
 
 export default function PublicProfile() {
     const params = useParams<{ username: string }>()
     const uname = String(params.username || '').toLowerCase()
-    const [q, setQ] = useState('')
-    const filtered = useMemo(() => {
-        const needle = q.trim().toLowerCase()
-        return (data as Pokemon[]).filter(p =>
-            !needle ||
-            p.name.toLowerCase().includes(needle) ||
-            p.id.toString() === needle.replace('#', '')
-        )
-    }, [q])
 
     const [viewer, setViewer] = useState<User | null>(null)
     const [profile, setProfile] = useState<Profile | null>(null)
     const [catches, setCatches] = useState<Catch[]>([])
-    const caughtCount = useMemo(
-        () => catches.filter(c => c.caught_shiny).length,
-        [catches]
-    )
+    const [q, setQ] = useState('')
+    const [filter, setFilter] = useState<Filter>('all')
+    const defaultOpen: Record<string, boolean> =
+        Object.fromEntries(GENS.map(g => [g.key, g.key === 'gen1'])) as Record<string, boolean>
+
+    const [open, setOpen] = useState<Record<string, boolean>>(() => defaultOpen)
+
 
 
     useEffect(() => {
@@ -57,66 +52,134 @@ export default function PublicProfile() {
     const status = (pokeId: number) =>
         catches.some(c => c.pokemon_id === pokeId && c.caught_shiny)
 
+    const caughtCount = useMemo(() => catches.filter(c => c.caught_shiny).length, [catches])
+
+    const filtered = useMemo(() => {
+        const needle = q.trim().toLowerCase()
+        return (data as Pokemon[]).filter(p => {
+            const has = status(p.id)
+            const byFilter = filter === 'all' ? true : filter === 'caught' ? has : !has
+            const bySearch = !needle || p.name.toLowerCase().includes(needle) || p.id.toString() === needle.replace('#', '')
+            return byFilter && bySearch
+        })
+    }, [q, filter, catches])
+
+    // Count matches in the CURRENT filtered list (respects Missing/Caught filter)
+    const matchesByGen = useMemo(() => {
+        const m: Record<string, number> =
+            Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
+        for (const p of filtered) {
+            const g = GENS.find(gg => p.id >= gg.start && p.id <= gg.end)
+            if (g) m[g.key]++
+        }
+        return m
+    }, [filtered])
+
+    // Auto-open gens with matches when searching
+    useEffect(() => {
+        const hasQuery = q.trim() !== ''
+        if (!hasQuery) return
+        setOpen(() => {
+            const next: Record<string, boolean> = {}
+            for (const g of GENS) next[g.key] = matchesByGen[g.key] > 0
+            return next
+        })
+    }, [q, matchesByGen])
+
+    // Reset to default when search cleared
+    useEffect(() => {
+        if (q.trim() === '') setOpen(defaultOpen)
+    }, [q])
+
+
+    const toggle = (k: string) => setOpen(prev => ({ ...prev, [k]: !prev[k] }))
+
     if (profile === null) {
         return (
             <main className="max-w-4xl mx-auto p-4">
                 <h1 className="text-2xl font-bold">User not found</h1>
-                <p className="mt-2">
-                    Go back to{' '}
-                    <Link href="/" className="underline">
-                        home
-                    </Link>
-                    .
-                </p>
+                <p className="mt-2">Go back to <Link href="/" className="underline">home</Link>.</p>
             </main>
         )
     }
 
     return (
         <main className="max-w-7xl mx-auto p-4">
-            <header className="poke-header flex items-center justify-between gap-2 mb-4 p-2">
-                <h1 className="text-2xl font-bold">@{profile.username}</h1>
-                <input
-                    className="border p-1"
-                    placeholder="Search name or #id"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                />
+            <header className="toolbar mb-4">
+                {/* left: title */}
+                <div><h1 className="text-2xl font-bold">@{profile.username}</h1></div>
 
-                <div className="flex items-center gap-2">
+                {/* center: filter + search (centered) */}
+                <div className="center">
+                    <select
+                        className="border p-1"
+                        value={filter}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value as Filter)}
+                    >
+                        <option value="all">All</option>
+                        <option value="missing">Missing</option>
+                        <option value="caught">Caught</option>
+                    </select>
+                    <input
+                        className="border p-1"
+                        placeholder="Search name or #id"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                    />
+                </div>
+
+                {/* right: pills */}
+                <div className="right">
                     <span className="pill">{caughtCount}/1025 caught</span>
-                    {!profile.is_public && !isOwner && (<span className="pill">This profile is private</span>)}
+                    {!profile.is_public && !isOwner && (<span className="pill">Private</span>)}
+                    {isOwner && (<Link href="/settings" className="pill">Edit profile</Link>)}
                 </div>
             </header>
 
-            <ul className="poke-grid">
-                {filtered.map(p => {
-                    const has = status(p.id)
-                    return (
-                        <li key={p.id} className={`poke-card flex flex-col items-center justify-between ${has ? 'shine' : ''}`}>
+            {/* accordion per generation */}
+            {GENS.map(g => {
+                const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
+                const caught = mons.filter(p => status(p.id)).length
+                const total = g.end - g.start + 1
+                return (
+                    <section key={g.key} className="gen-section">
+                        <button className="gen-header" onClick={() => toggle(g.key)}>
+                            <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
+                                <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span className="gen-title">{g.name}</span>
+                            <span className="pill" style={{ marginLeft: 'auto' }}>{caught}/{total}</span>
+                        </button>
 
-                            <div className="w-full flex items-center justify-between mb-1">
-                                <span className="text-[11px] font-medium opacity-80">#{p.id.toString().padStart(4, '0')}</span>
-                                <span title="Owner" className={`w-2.5 h-2.5 rounded-full ${has ? 'bg-green-500' : 'bg-gray-300'}`} />
-                            </div>
-
-                            <div className="flex justify-center items-center h-20">
-                                <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" unoptimized/>
-                            </div>
-
-                            <div className="text-center text-[11px] mt-1">{p.name}</div>
-
-                            {isOwner ? (
-                                <Link href="/" className="mt-2 w-full btn btn-tonal text-center">Manage on Home</Link>
-                            ) : (
-                                <div className={`mt-2 w-full btn ${has ? 'btn-primary' : 'btn-tonal'} text-center`}>
-                                    {has ? 'Shiny caught' : 'Missing'}
-                                </div>
-                            )}
-                        </li>
-                    )
-                })}
-            </ul>
+                        {open[g.key] && (
+                            <ul className="poke-grid">
+                                {mons.map(p => {
+                                    const has = status(p.id)
+                                    return (
+                                        <li key={p.id} className={`poke-card flex flex-col items-center justify-between ${has ? 'shine' : ''}`}>
+                                            <div className="w-full flex items-center justify-between mb-1">
+                                                <span className="text-[11px] font-medium opacity-80">#{p.id.toString().padStart(4, '0')}</span>
+                                                <span title="Owner" className={`w-2.5 h-2.5 rounded-full ${has ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                            </div>
+                                            <div className="flex justify-center items-center h-20">
+                                                <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" unoptimized />
+                                            </div>
+                                            <div className="text-center text-[11px] mt-1">{p.name}</div>
+                                            {isOwner ? (
+                                                <Link href="/" className="mt-2 w-full btn btn-tonal text-center">Manage on Home</Link>
+                                            ) : (
+                                                <div className={`mt-2 w-full btn ${has ? 'btn-primary' : 'btn-tonal'} text-center`}>
+                                                    {has ? 'Shiny caught' : 'Missing'}
+                                                </div>
+                                            )}
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        )}
+                    </section>
+                )
+            })}
         </main>
     )
 }

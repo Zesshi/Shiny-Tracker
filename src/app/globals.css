@@ -154,3 +154,26 @@ input:focus, select:focus{
 .tab:hover{ background: rgba(255,255,255,.05); }
 .tab.active{ background: var(--accent); color:#fff; }
 
+/* Toolbar: left / center / right */
+.toolbar{
+  display:grid; gap:10px; align-items:center;
+  grid-template-columns: 1fr minmax(260px, 520px) 1fr;
+}
+.toolbar .center{ justify-self:center; display:flex; gap:8px; }
+.toolbar .right{ justify-self:end; display:flex; gap:8px; align-items:center; }
+@media (max-width: 640px){
+  .toolbar{ grid-template-columns: 1fr; }
+  .toolbar .center, .toolbar .right{ justify-self: stretch; }
+}
+
+/* Accordion per generation */
+.gen-section{ margin-bottom: 18px; }
+.gen-header{
+  width:100%; display:flex; align-items:center; gap:10px;
+  padding:8px 10px; background:var(--surf-1);
+  border:1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 1em;
+}
+.gen-title{ font-weight:600; color:white;}
+.chev{ width:16px; height:16px; transition:transform .15s ease; opacity:.85; color: white}
+.chev.open{ transform: rotate(180deg); }
