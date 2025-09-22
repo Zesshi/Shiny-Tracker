@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
-import { enqueue, flushQueue, listenOnline } from '@/lib/offline-queue'
+import { flushQueue, listenOnline } from '@/lib/offline-queue'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
@@ -20,9 +21,12 @@ export default function Home() {
   const [q, setQ] = useState('')
   const [trainerQ, setTrainerQ] = useState('')
   const [trainerRows, setTrainerRows] = useState<TrainerRow[]>([])
-  const defaultOpen: Record<string, boolean> =
-    Object.fromEntries(GENS.map(g => [g.key, g.key === 'gen1'])) as Record<string, boolean>
 
+  // gen1 open by default (stable object)
+  const defaultOpen = useMemo(
+    () => Object.fromEntries(GENS.map(g => [g.key, g.key === 'gen1'])) as Record<string, boolean>,
+    []
+  )
   const [open, setOpen] = useState<Record<string, boolean>>(() => defaultOpen)
 
   // auth + my catches
@@ -39,24 +43,24 @@ export default function Home() {
     })
   }, [])
 
+  // flush any offline queue, and listen for online to re-flush
   useEffect(() => {
-    (async () => {
-      if (!user) return
-      try { await flushQueue(supabase, user.id) } catch { }
-      const un = listenOnline(supabase, user.id)
-      return () => un()
-    })()
+    if (!user) return
+    // no need for async cleanup here
+    flushQueue(supabase, user.id).catch(() => {})
+    const un = listenOnline(supabase, user.id)
+    return un
   }, [user])
 
   // trainer search (right side)
   useEffect(() => {
     const id = setTimeout(async () => {
-      const q = trainerQ.trim().toLowerCase()
-      if (!q) { setTrainerRows([]); return }
+      const needle = trainerQ.trim().toLowerCase()
+      if (!needle) { setTrainerRows([]); return }
       const { data } = await supabase
         .from('profiles')
         .select('username,is_public')
-        .ilike('username', `%${q}%`)
+        .ilike('username', `%${needle}%`)
         .limit(10)
         .returns<TrainerRow[]>()
       setTrainerRows(data || [])
@@ -71,24 +75,30 @@ export default function Home() {
   async function toggleMine(pokemon_id: number) {
     if (!user) return
     const mine = catches.find(c => c.user_id === user.id && c.pokemon_id === pokemon_id)
-    const want = !(mine?.caught_shiny) // toggling
-    // optimistic UI
-    if (want) {
-      const newRow = { user_id: user.id, pokemon_id, caught_shiny: true }
-      setCatches(prev => mine ? prev.map(c => c.user_id === user.id && c.pokemon_id === pokemon_id ? newRow : c) : [...prev, newRow as any])
-    } else {
-      setCatches(prev => prev.filter(c => !(c.user_id === user.id && c.pokemon_id === pokemon_id)))
-    }
 
-    try {
-      if (want) {
-        await supabase.from('catches').upsert({ user_id: user.id, pokemon_id, caught_shiny: true }, { onConflict: 'user_id,pokemon_id' })
-      } else {
-        await supabase.from('catches').delete().eq('user_id', user.id).eq('pokemon_id', pokemon_id)
+    if (mine?.caught_shiny) {
+      await supabase.from('catches').delete().eq('user_id', user.id).eq('pokemon_id', pokemon_id)
+      setCatches(prev => prev.filter(c => !(c.user_id === user.id && c.pokemon_id === pokemon_id)))
+    } else if (mine) {
+      const { data } = await supabase
+        .from('catches')
+        .update({ caught_shiny: true })
+        .eq('user_id', user.id)
+        .eq('pokemon_id', pokemon_id)
+        .select()
+        .returns<Catch[]>()
+      if (data && data[0]) {
+        setCatches(prev => prev.map(c =>
+          c.user_id === user.id && c.pokemon_id === pokemon_id ? data[0] : c
+        ))
       }
-    } catch {
-      // offline → queue it
-      enqueue(pokemon_id, want)
+    } else {
+      const { data } = await supabase
+        .from('catches')
+        .insert({ user_id: user.id, pokemon_id, caught_shiny: true })
+        .select()
+        .returns<Catch[]>()
+      if (data && data[0]) setCatches(prev => [...prev, data[0]])
     }
   }
 
@@ -117,6 +127,7 @@ export default function Home() {
     return m
   }, [filtered])
 
+  // overall per-gen progress (for banner tint + counts)
   const haveByGen = useMemo(() => {
     const m = Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
     for (const c of catches) {
@@ -127,8 +138,7 @@ export default function Home() {
     return m
   }, [catches])
 
-
-  // When search has text, auto-open just the gens with matches
+  // auto-open gens with matches when searching
   useEffect(() => {
     const hasQuery = q.trim() !== ''
     if (!hasQuery) return
@@ -139,11 +149,10 @@ export default function Home() {
     })
   }, [q, matchesByGen])
 
-  // When search is cleared, reset to default (Gen 1 open)
+  // when search cleared, reset to default (Gen 1 open)
   useEffect(() => {
     if (q.trim() === '') setOpen(defaultOpen)
-  }, [q])
-
+  }, [q, defaultOpen])
 
   const mineCount = catches.length
   const toggle = (k: string) => setOpen(prev => ({ ...prev, [k]: !prev[k] }))
@@ -185,26 +194,27 @@ export default function Home() {
             {trainerRows.length > 0 && (
               <div className="results-panel">
                 {trainerRows.map(r => (
-                  <a key={r.username} href={`/u/${r.username}`} className="result-item">
+                  <Link key={r.username} href={`/u/${r.username}`} className="result-item">
                     @{r.username}
                     {!r.is_public && <span className="private">private</span>}
-                  </a>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
         </div>
       </header>
+
       {/* accordion per generation */}
       {GENS.map(g => {
         const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
-        const caught = mons.filter(p => status(p.id)).length
         const total = g.end - g.start + 1
         const have = haveByGen[g.key] || 0
         const bannerClass =
           have >= total ? 'gen-gold'
-            : have >= Math.ceil(total * 0.5) ? 'gen-silver'
-              : ''
+          : have >= Math.ceil(total * 0.5) ? 'gen-silver'
+          : ''
+
         return (
           <section key={g.key} className="gen-section">
             <button className={`gen-header ${bannerClass}`} onClick={() => toggle(g.key)}>
