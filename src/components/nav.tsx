@@ -2,6 +2,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -35,9 +36,18 @@ export default function Nav() {
 
   return (
     <nav className="poke-header flex items-center justify-between p-3 mb-4">
-      <Link href="/" className="text-xl font-bold">Shiny Tracker</Link>
+      <Link href="/" className="flex items-center gap-2">
+        <Image
+          src="/icon-192.png"
+          alt="Shiny Tracker"
+          width={56}
+          height={56}
+          className="logo"
+          priority
+        />
+        <span className="sr-only">Shiny Tracker</span>
+      </Link>
       <div className="flex items-center gap-2 text-sm">
-        {username && <Link href={`/u/${username}`} className="pill">Profile</Link>}
         <Link href="/settings" className="pill">Settings</Link>
         <button onClick={signOut} className="pill">Log out</button>
       </div>

@@ -75,6 +75,17 @@ export default function PublicProfile() {
         return m
     }, [filtered])
 
+    const haveByGen = useMemo(() => {
+        const m = Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
+        for (const c of catches) {
+            if (!c.caught_shiny) continue
+            const g = GENS.find(gg => c.pokemon_id >= gg.start && c.pokemon_id <= gg.end)
+            if (g) m[g.key]++
+        }
+        return m
+    }, [catches])
+
+
     // Auto-open gens with matches when searching
     useEffect(() => {
         const hasQuery = q.trim() !== ''
@@ -132,23 +143,27 @@ export default function PublicProfile() {
                 <div className="right">
                     <span className="pill">{caughtCount}/1025 caught</span>
                     {!profile.is_public && !isOwner && (<span className="pill">Private</span>)}
-                    {isOwner && (<Link href="/settings" className="pill">Edit profile</Link>)}
                 </div>
             </header>
-
             {/* accordion per generation */}
             {GENS.map(g => {
                 const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
                 const caught = mons.filter(p => status(p.id)).length
                 const total = g.end - g.start + 1
+                const have = haveByGen[g.key] || 0
+                const bannerClass =
+                    have >= total ? 'gen-gold'
+                        : have >= Math.ceil(total * 0.5) ? 'gen-silver'
+                            : ''
+
                 return (
                     <section key={g.key} className="gen-section">
-                        <button className="gen-header" onClick={() => toggle(g.key)}>
+                        <button className={`gen-header ${bannerClass}`} onClick={() => toggle(g.key)}>
                             <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
                                 <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             <span className="gen-title">{g.name}</span>
-                            <span className="pill" style={{ marginLeft: 'auto' }}>{caught}/{total}</span>
+                            <span className="pill" style={{ marginLeft: 'auto' }}>{have}/{total}</span>
                         </button>
 
                         {open[g.key] && (

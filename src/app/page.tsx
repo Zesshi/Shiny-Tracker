@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
+import { enqueue, flushQueue, listenOnline } from '@/lib/offline-queue'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
@@ -24,7 +25,6 @@ export default function Home() {
 
   const [open, setOpen] = useState<Record<string, boolean>>(() => defaultOpen)
 
-
   // auth + my catches
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -38,6 +38,15 @@ export default function Home() {
       setCatches(cats || [])
     })
   }, [])
+
+  useEffect(() => {
+    (async () => {
+      if (!user) return
+      try { await flushQueue(supabase, user.id) } catch { }
+      const un = listenOnline(supabase, user.id)
+      return () => un()
+    })()
+  }, [user])
 
   // trainer search (right side)
   useEffect(() => {
@@ -62,20 +71,24 @@ export default function Home() {
   async function toggleMine(pokemon_id: number) {
     if (!user) return
     const mine = catches.find(c => c.user_id === user.id && c.pokemon_id === pokemon_id)
-    if (mine?.caught_shiny) {
-      await supabase.from('catches').delete().eq('user_id', user.id).eq('pokemon_id', pokemon_id)
-      setCatches(prev => prev.filter(c => !(c.user_id === user.id && c.pokemon_id === pokemon_id)))
-    } else if (mine) {
-      const { data } = await supabase.from('catches')
-        .update({ caught_shiny: true })
-        .eq('user_id', user.id).eq('pokemon_id', pokemon_id)
-        .select().returns<Catch[]>()
-      if (data && data[0]) setCatches(prev => prev.map(c => (c.user_id === user.id && c.pokemon_id === pokemon_id ? data[0] : c)))
+    const want = !(mine?.caught_shiny) // toggling
+    // optimistic UI
+    if (want) {
+      const newRow = { user_id: user.id, pokemon_id, caught_shiny: true }
+      setCatches(prev => mine ? prev.map(c => c.user_id === user.id && c.pokemon_id === pokemon_id ? newRow : c) : [...prev, newRow as any])
     } else {
-      const { data } = await supabase.from('catches')
-        .insert({ user_id: user.id, pokemon_id, caught_shiny: true })
-        .select().returns<Catch[]>()
-      if (data && data[0]) setCatches(prev => [...prev, data[0]])
+      setCatches(prev => prev.filter(c => !(c.user_id === user.id && c.pokemon_id === pokemon_id)))
+    }
+
+    try {
+      if (want) {
+        await supabase.from('catches').upsert({ user_id: user.id, pokemon_id, caught_shiny: true }, { onConflict: 'user_id,pokemon_id' })
+      } else {
+        await supabase.from('catches').delete().eq('user_id', user.id).eq('pokemon_id', pokemon_id)
+      }
+    } catch {
+      // offline → queue it
+      enqueue(pokemon_id, want)
     }
   }
 
@@ -103,6 +116,17 @@ export default function Home() {
     }
     return m
   }, [filtered])
+
+  const haveByGen = useMemo(() => {
+    const m = Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
+    for (const c of catches) {
+      if (!c.caught_shiny) continue
+      const g = GENS.find(gg => c.pokemon_id >= gg.start && c.pokemon_id <= gg.end)
+      if (g) m[g.key]++
+    }
+    return m
+  }, [catches])
+
 
   // When search has text, auto-open just the gens with matches
   useEffect(() => {
@@ -171,20 +195,24 @@ export default function Home() {
           </div>
         </div>
       </header>
-
       {/* accordion per generation */}
       {GENS.map(g => {
         const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
         const caught = mons.filter(p => status(p.id)).length
         const total = g.end - g.start + 1
+        const have = haveByGen[g.key] || 0
+        const bannerClass =
+          have >= total ? 'gen-gold'
+            : have >= Math.ceil(total * 0.5) ? 'gen-silver'
+              : ''
         return (
           <section key={g.key} className="gen-section">
-            <button className="gen-header" onClick={() => toggle(g.key)}>
+            <button className={`gen-header ${bannerClass}`} onClick={() => toggle(g.key)}>
               <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
                 <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span className="gen-title">{g.name}</span>
-              <span className="pill" style={{ marginLeft: 'auto' }}>{caught}/{total}</span>
+              <span className="pill" style={{ marginLeft: 'auto' }}>{have}/{total}</span>
             </button>
 
             {open[g.key] && (
