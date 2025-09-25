@@ -33,7 +33,6 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
 
-    // ✅ Cache-first for sprites with no-cors/omit to avoid CORS errors
     if (/raw\.githubusercontent\.com\/PokeAPI\/sprites\/master\/sprites\/pokemon\//.test(url.href)) {
         e.respondWith((async () => {
             const cache = await caches.open(SPRITES);

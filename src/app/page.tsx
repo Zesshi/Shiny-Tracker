@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
 import { flushQueue, listenOnline } from '@/lib/offline-queue'
+import { spriteUrl } from '@/lib/sprites'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
@@ -47,7 +48,7 @@ export default function Home() {
   useEffect(() => {
     if (!user) return
     // no need for async cleanup here
-    flushQueue(supabase, user.id).catch(() => {})
+    flushQueue(supabase, user.id).catch(() => { })
     const un = listenOnline(supabase, user.id)
     return un
   }, [user])
@@ -210,10 +211,13 @@ export default function Home() {
         const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
         const total = g.end - g.start + 1
         const have = haveByGen[g.key] || 0
+        const pct = have / total
         const bannerClass =
-          have >= total ? 'gen-gold'
-          : have >= Math.ceil(total * 0.5) ? 'gen-silver'
-          : ''
+          pct >= 1 ? 'gen-rainbow' :
+            pct >= 0.75 ? 'gen-gold' :
+              pct >= 0.50 ? 'gen-silver' :
+                pct >= 0.25 ? 'gen-bronze' :
+                  ''
 
         return (
           <section key={g.key} className="gen-section">
@@ -236,7 +240,15 @@ export default function Home() {
                         <span title="You" className={`w-2.5 h-2.5 rounded-full ${mine ? 'bg-green-500' : 'bg-gray-300'}`} />
                       </div>
                       <div className="flex justify-center items-center h-20">
-                        <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" unoptimized />
+                        <Image
+                          src={spriteUrl(p.id, mine)}
+                          alt={p.name}
+                          width={72}
+                          height={72}
+                          className="poke-sprite"
+                          loading="lazy"
+                          unoptimized
+                        />
                       </div>
                       <div className="text-center text-[11px] mt-1">{p.name}</div>
                       <button onClick={() => toggleMine(p.id)} className={`mt-2 w-full btn ${mine ? 'btn-primary' : 'btn-tonal'}`}>

@@ -6,22 +6,23 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
+import { spriteUrl } from '@/lib/sprites'
 
 type Pokemon = { id: number; name: string; sprite: string }
-type Catch   = { user_id: string; pokemon_id: number; caught_shiny: boolean }
-type User    = { id: string; email: string | null }
+type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
+type User = { id: string; email: string | null }
 type Profile = { id: string; username: string; is_public: boolean }
-type Filter  = 'all' | 'caught' | 'missing'
+type Filter = 'all' | 'caught' | 'missing'
 
 export default function PublicProfile() {
   const params = useParams<{ username: string }>()
   const uname = String(params.username || '').toLowerCase()
 
-  const [viewer, setViewer]   = useState<User | null>(null)
+  const [viewer, setViewer] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [catches, setCatches] = useState<Catch[]>([])
-  const [q, setQ]             = useState('')
-  const [filter, setFilter]   = useState<Filter>('all')
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
 
   // gen1 open by default (stable)
   const defaultOpen = useMemo(
@@ -38,23 +39,23 @@ export default function PublicProfile() {
 
   useEffect(() => {
     if (!uname) return
-    ;(async () => {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('id,username,is_public')
-        .ilike('username', uname)
-        .maybeSingle()
-        .returns<Profile>()
-      if (!prof) { setProfile(null); return }
-      setProfile(prof)
+      ; (async () => {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('id,username,is_public')
+          .ilike('username', uname)
+          .maybeSingle()
+          .returns<Profile>()
+        if (!prof) { setProfile(null); return }
+        setProfile(prof)
 
-      const { data: cats } = await supabase
-        .from('catches')
-        .select('user_id,pokemon_id,caught_shiny')
-        .eq('user_id', prof.id)
-        .returns<Catch[]>()
-      setCatches(cats || [])
-    })()
+        const { data: cats } = await supabase
+          .from('catches')
+          .select('user_id,pokemon_id,caught_shiny')
+          .eq('user_id', prof.id)
+          .returns<Catch[]>()
+        setCatches(cats || [])
+      })()
   }, [uname])
 
   const isOwner = viewer?.id === profile?.id
@@ -172,11 +173,14 @@ export default function PublicProfile() {
         GENS.map(g => {
           const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
           const total = g.end - g.start + 1
-          const have  = haveByGen[g.key] || 0
+          const have = haveByGen[g.key] || 0
+          const pct = have / total
           const bannerClass =
-            have >= total ? 'gen-gold'
-            : have >= Math.ceil(total * 0.5) ? 'gen-silver'
-            : ''
+            pct >= 1 ? 'gen-rainbow' :
+              pct >= 0.75 ? 'gen-gold' :
+                pct >= 0.50 ? 'gen-silver' :
+                  pct >= 0.25 ? 'gen-bronze' :
+                    ''
 
           return (
             <section key={g.key} className="gen-section">
@@ -199,7 +203,15 @@ export default function PublicProfile() {
                           <span title="Owner" className={`w-2.5 h-2.5 rounded-full ${has ? 'bg-green-500' : 'bg-gray-300'}`} />
                         </div>
                         <div className="flex justify-center items-center h-20">
-                          <Image src={p.sprite} alt={p.name} width={72} height={72} className="poke-sprite" loading="lazy" unoptimized />
+                          <Image
+                            src={spriteUrl(p.id, has)}
+                            alt={p.name}
+                            width={72}
+                            height={72}
+                            className="poke-sprite"
+                            loading="lazy"
+                            unoptimized
+                          />
                         </div>
                         <div className="text-center text-[11px] mt-1">{p.name}</div>
 
