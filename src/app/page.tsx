@@ -220,7 +220,11 @@ export default function Home() {
                   ''
 
         return (
-          <section key={g.key} className="gen-section">
+          <section
+            key={g.key}
+            className="gen-section"
+            style={{ ['--gen-bg' as any]: `url('/gen/${g.key}.jpg')` }}
+          >
             <button className={`gen-header ${bannerClass}`} onClick={() => toggle(g.key)}>
               <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
                 <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

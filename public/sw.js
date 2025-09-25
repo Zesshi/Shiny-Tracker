@@ -3,7 +3,10 @@ const DATA = 'data-v3';
 const SPRITES = 'sprites-v3';
 
 const APP_SHELL = [
-  '/', '/manifest.webmanifest'
+  '/', '/manifest.webmanifest',
+  '/gen/gen1.jpg','/gen/gen2.jpg','/gen/gen3.jpg',
+  '/gen/gen4.jpg','/gen/gen5.jpg','/gen/gen6.jpg',
+  '/gen/gen7.jpg','/gen/gen8.jpg','/gen/gen9.jpg',
 ];
 
 
