@@ -7,12 +7,14 @@ import { supabase } from '@/lib/supabase'
 import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
 import { spriteUrl } from '@/lib/sprites'
+import type { CSSProperties } from 'react'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
 type User = { id: string; email: string | null }
 type Profile = { id: string; username: string; is_public: boolean }
 type Filter = 'all' | 'caught' | 'missing'
+type GenStyle = CSSProperties & { ['--gen-bg']?: string }
 
 export default function PublicProfile() {
   const params = useParams<{ username: string }>()
@@ -171,6 +173,7 @@ export default function PublicProfile() {
         </div>
       ) : (
         GENS.map(g => {
+          const sectionStyle: GenStyle = { ['--gen-bg']: `url('/gen/${g.key}.jpg')` }
           const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
           const total = g.end - g.start + 1
           const have = haveByGen[g.key] || 0
@@ -183,7 +186,7 @@ export default function PublicProfile() {
                     ''
 
           return (
-            <section key={g.key} className="gen-section">
+            <section key={g.key} className="gen-section" style={sectionStyle}>
               <button className={`gen-header ${bannerClass}`} onClick={() => setOpen(prev => ({ ...prev, [g.key]: !prev[g.key] }))}>
                 <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
                   <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

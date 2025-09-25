@@ -8,12 +8,14 @@ import data from '@/data/pokemon.json'
 import { GENS } from '@/lib/gens'
 import { flushQueue, listenOnline } from '@/lib/offline-queue'
 import { spriteUrl } from '@/lib/sprites'
+import type { CSSProperties } from 'react'
 
 type Pokemon = { id: number; name: string; sprite: string }
 type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
 type User = { id: string; email: string | null }
 type Filter = 'all' | 'mine-missing' | 'mine-caught'
 type TrainerRow = { username: string; is_public: boolean }
+type GenStyle = CSSProperties & { ['--gen-bg']?: string }
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null)
@@ -208,6 +210,7 @@ export default function Home() {
 
       {/* accordion per generation */}
       {GENS.map(g => {
+        const sectionStyle: GenStyle = { ['--gen-bg']: `url('/gen/${g.key}.jpg')` }
         const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
         const total = g.end - g.start + 1
         const have = haveByGen[g.key] || 0
@@ -223,7 +226,7 @@ export default function Home() {
           <section
             key={g.key}
             className="gen-section"
-            style={{ ['--gen-bg' as any]: `url('/gen/${g.key}.jpg')` }}
+            style={sectionStyle}
           >
             <button className={`gen-header ${bannerClass}`} onClick={() => toggle(g.key)}>
               <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
