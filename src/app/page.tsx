@@ -233,6 +233,7 @@ export default function Home() {
                 <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span className="gen-title">{g.name}</span>
+              <span className="gen-numbers">{g.start} - {g.end}</span>
               <span className="pill" style={{ marginLeft: 'auto' }}>{have}/{total}</span>
             </button>
 
