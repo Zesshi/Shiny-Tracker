@@ -8,6 +8,6 @@ export const GENS: Gen[] = [
   { key: 'gen5', name: 'Gen 5 • Unova',  start: 494, end: 649 },
   { key: 'gen6', name: 'Gen 6 • Kalos',  start: 650, end: 721 },
   { key: 'gen7', name: 'Gen 7 • Alola',  start: 722, end: 809 },
-  { key: 'gen8', name: 'Gen 8 • Galar',  start: 810, end: 898 },
+  { key: 'gen8', name: 'Gen 8 • Galar',  start: 810, end: 905 },
   { key: 'gen9', name: 'Gen 9 • Paldea', start: 906, end: 1025 },
 ]
