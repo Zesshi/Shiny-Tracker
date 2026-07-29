@@ -1,159 +1,287 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRequireAuth } from '@/components/auth-provider'
+import { authErrorMessage, dataErrorMessage } from '@/lib/errors'
+import type { Profile } from '@/lib/types'
+import {
+  Alert,
+  Button,
+  Card,
+  CardHeader,
+  Checkbox,
+  Container,
+  ErrorState,
+  Input,
+  LinkButton,
+  PageHeader,
+  PageLoading,
+  Spinner,
+} from '@/components/ui'
 
-type Profile = {
-    id: string
-    email: string | null
-    username: string | null
-    is_public: boolean
-}
+const USERNAME_RULE = /^[a-z0-9_]{3,20}$/
+
+type Feedback = { tone: 'error' | 'success'; text: string } | null
 
 export default function Settings() {
-    const [me, setMe] = useState<Profile | null>(null)
-    const [username, setUsername] = useState('')
-    const [isPublic, setIsPublic] = useState(true)
+  const { status, user } = useRequireAuth()
 
-    const [saving, setSaving] = useState(false)
-    const [msg, setMsg] = useState<string | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-    // password change
-    const [newPass, setNewPass] = useState('')
-    const [newPass2, setNewPass2] = useState('')
-    const [passMsg, setPassMsg] = useState<string | null>(null)
-    const [passSaving, setPassSaving] = useState(false)
+  const [username, setUsername] = useState('')
+  const [isPublic, setIsPublic] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [profileFeedback, setProfileFeedback] = useState<Feedback>(null)
+  const [usernameError, setUsernameError] = useState<string | undefined>()
 
-    useEffect(() => {
-        (async () => {
-            const { data } = await supabase.auth.getUser()
-            if (!data.user) { window.location.href = '/login'; return }
-            const uid = data.user.id
-            const { data: prof } = await supabase
-                .from('profiles')
-                .select('id,email,username,is_public')
-                .eq('id', uid)
-                .single()
-            if (prof) {
-                const p = prof as Profile
-                setMe(p)
-                setUsername(p.username ?? '')
-                setIsPublic(p.is_public)
-            }
-        })()
-    }, [])
+  const [newPass, setNewPass] = useState('')
+  const [newPass2, setNewPass2] = useState('')
+  const [passSaving, setPassSaving] = useState(false)
+  const [passFeedback, setPassFeedback] = useState<Feedback>(null)
+  const [passErrors, setPassErrors] = useState<Record<string, string>>({})
 
-    async function saveProfile() {
-        if (!me) return
-        setMsg(null)
-        setSaving(true)
-        try {
-            const uname = username.trim().toLowerCase()
-            if (!/^[a-z0-9_]{3,20}$/.test(uname)) {
-                setMsg('Username must be 3–20 chars (a–z, 0–9, _).')
-                return
-            }
-            // check availability excluding myself
-            const { data: taken } = await supabase
-                .from('profiles')
-                .select('id')
-                .ilike('username', uname)
-                .neq('id', me.id)
-                .maybeSingle()
-            if (taken) { setMsg('Username is already taken.'); return }
+  const userId = user?.id
 
-            const { error } = await supabase
-                .from('profiles')
-                .update({ username: uname, is_public: isPublic })
-                .eq('id', me.id)
+  const loadProfile = useCallback(async () => {
+    if (!userId) return
+    setLoading(true)
+    setLoadError(null)
 
-            setMsg(error ? error.message : 'Saved!')
-        } finally {
-            setSaving(false)
-        }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,username,is_public')
+      .eq('id', userId)
+      .single<Profile>()
+
+    if (error) {
+      setLoadError(
+        dataErrorMessage(error, 'We could not load your profile.', 'settings'),
+      )
+    } else if (data) {
+      setProfile(data)
+      setUsername(data.username ?? '')
+      setIsPublic(data.is_public)
+    }
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => {
+    void loadProfile()
+  }, [loadProfile])
+
+  /* --- Save profile ----------------------------------------------------- */
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault()
+    if (!profile) return
+
+    setProfileFeedback(null)
+    setUsernameError(undefined)
+
+    const uname = username.trim().toLowerCase()
+    if (!USERNAME_RULE.test(uname)) {
+      setUsernameError('Use 3–20 characters: a–z, 0–9 or underscore.')
+      return
     }
 
-    async function changePassword() {
-        setPassMsg(null)
-        if (newPass.length < 6) { setPassMsg('Password must be at least 6 characters.'); return }
-        if (newPass !== newPass2) { setPassMsg('Passwords do not match.'); return }
-        setPassSaving(true)
-        try {
-            const { error } = await supabase.auth.updateUser({ password: newPass })
-            setPassMsg(error ? error.message : 'Password updated.')
-            if (!error) { setNewPass(''); setNewPass2('') }
-        } finally {
-            setPassSaving(false)
-        }
+    setSaving(true)
+    try {
+      const { data: taken, error: lookupErr } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', uname)
+        .neq('id', profile.id)
+        .maybeSingle()
+
+      if (lookupErr) {
+        setProfileFeedback({
+          tone: 'error',
+          text: dataErrorMessage(lookupErr, 'Could not check that username.', 'settings'),
+        })
+        return
+      }
+      if (taken) {
+        setUsernameError('That username is already taken.')
+        return
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ username: uname, is_public: isPublic })
+        .eq('id', profile.id)
+
+      if (error) {
+        setProfileFeedback({
+          tone: 'error',
+          text: dataErrorMessage(error, 'Your changes could not be saved.', 'settings'),
+        })
+        return
+      }
+
+      // Reuse the values we just wrote instead of re-reading the row.
+      setProfile({ ...profile, username: uname, is_public: isPublic })
+      setProfileFeedback({ tone: 'success', text: 'Profile saved.' })
+    } finally {
+      setSaving(false)
     }
+  }
 
-    const viewHref = username ? `/u/${username.toLowerCase()}` : '/settings'
+  /* --- Change password -------------------------------------------------- */
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPassFeedback(null)
 
+    const errors: Record<string, string> = {}
+    if (newPass.length < 6) errors.newPass = 'Use at least 6 characters.'
+    if (newPass !== newPass2) errors.newPass2 = 'Passwords do not match.'
+    setPassErrors(errors)
+    if (Object.keys(errors).length) return
+
+    setPassSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPass })
+      if (error) {
+        setPassFeedback({ tone: 'error', text: authErrorMessage(error, 'password') })
+        return
+      }
+      setPassFeedback({ tone: 'success', text: 'Password updated.' })
+      setNewPass('')
+      setNewPass2('')
+    } finally {
+      setPassSaving(false)
+    }
+  }
+
+  /* --- Render ----------------------------------------------------------- */
+  if (status !== 'authenticated') {
     return (
-        <main className="max-w-lg mx-auto p-6">
-            <header className="flex items-center justify-between mb-4">
-                <Link href="/" className="pill">← Back</Link>
-                <h1 className="text-2xl font-bold">Settings</h1>
-                {username ? <Link href={viewHref} className="pill">@{username}</Link> : <span className="opacity-0 pill">.</span>}
-            </header>
-
-            {/* Profile card */}
-            <div className="card space-y-4">
-                <div>
-                    <label className="block text-sm text-dim mb-1">Email</label>
-                    <div className="pill">{me?.email ?? '—'}</div>
-                </div>
-
-                <div>
-                    <label className="block text-sm text-dim mb-1">Username</label>
-                    <input
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        placeholder="ash_ketchum"
-                    />
-                    <p className="text-xs text-dim mt-1">Lowercase letters, numbers, underscore.</p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <input id="pub" type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-                    <label htmlFor="pub">Public profile (others can view your shinies)</label>
-                </div>
-
-                <button onClick={saveProfile} className="btn disabled:opacity-60" disabled={saving}>
-                    {saving ? 'Saving…' : 'Save'}
-                </button>
-                {msg && <p className="text-sm">{msg}</p>}
-            </div>
-
-            {/* Password card */}
-            <div className="card space-y-3 mt-4">
-                <h2 className="text-lg font-semibold">Change password</h2>
-
-                <label className="block text-sm text-dim">New password (min 6)</label>
-                <input
-                    className="w-full"
-                    type="password"
-                    placeholder="New password"
-                    value={newPass}
-                    onChange={e => setNewPass(e.target.value)}
-                />
-
-                <label className="block text-sm text-dim">Confirm new password</label>
-                <input
-                    className="w-full"
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={newPass2}
-                    onChange={e => setNewPass2(e.target.value)}
-                />
-
-                <button onClick={changePassword} className="btn btn-primary disabled:opacity-60" disabled={passSaving}>
-                    {passSaving ? 'Updating…' : 'Update password'}
-                </button>
-                {passMsg && <p className="text-sm">{passMsg}</p>}
-            </div>
-
-        </main>
+      <Container width="md">
+        <PageLoading label="Checking your session" />
+      </Container>
     )
+  }
+
+  const profileHref = profile?.username ? `/u/${profile.username}` : null
+
+  return (
+    <Container width="md">
+      <PageHeader
+        title="Settings"
+        description="Manage your public profile and account security."
+        actions={
+          profileHref && (
+            <LinkButton href={profileHref} variant="secondary" size="sm">
+              View @{profile?.username}
+            </LinkButton>
+          )
+        }
+      />
+
+      {loading ? (
+        <PageLoading label="Loading your profile" />
+      ) : loadError ? (
+        <ErrorState
+          description={loadError}
+          action={
+            <Button variant="secondary" onClick={() => void loadProfile()}>
+              Try again
+            </Button>
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-4 pb-12">
+          <Card padding="lg">
+            <CardHeader
+              title="Profile"
+              description="Your username is how other trainers find you."
+            />
+
+            <form onSubmit={saveProfile} className="mt-5 flex flex-col gap-4" noValidate>
+              <div>
+                <p className="text-sm font-medium text-ink-muted">Email</p>
+                <p className="mt-1.5 truncate rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink-muted">
+                  {profile?.email ?? '—'}
+                </p>
+              </div>
+
+              <Input
+                label="Username"
+                value={username}
+                placeholder="ash_ketchum"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                hint="Lowercase letters, numbers and underscore."
+                error={usernameError}
+                onChange={e => setUsername(e.target.value)}
+              />
+
+              <Checkbox
+                label="Public profile"
+                hint="Other trainers can view your shiny dex at your profile URL."
+                checked={isPublic}
+                onChange={e => setIsPublic(e.target.checked)}
+              />
+
+              {profileFeedback && (
+                <Alert tone={profileFeedback.tone}>{profileFeedback.text}</Alert>
+              )}
+
+              <div>
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {saving && <Spinner className="size-4" />}
+                  {saving ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card padding="lg">
+            <CardHeader
+              title="Change password"
+              description="You will stay signed in on this device."
+            />
+
+            <form
+              onSubmit={changePassword}
+              className="mt-5 flex flex-col gap-4"
+              noValidate
+            >
+              <Input
+                label="New password"
+                type="password"
+                value={newPass}
+                autoComplete="new-password"
+                placeholder="Minimum 6 characters"
+                error={passErrors.newPass}
+                onChange={e => setNewPass(e.target.value)}
+              />
+              <Input
+                label="Confirm new password"
+                type="password"
+                value={newPass2}
+                autoComplete="new-password"
+                placeholder="Re-enter your new password"
+                error={passErrors.newPass2}
+                onChange={e => setNewPass2(e.target.value)}
+              />
+
+              {passFeedback && (
+                <Alert tone={passFeedback.tone}>{passFeedback.text}</Alert>
+              )}
+
+              <div>
+                <Button type="submit" variant="primary" disabled={passSaving}>
+                  {passSaving && <Spinner className="size-4" />}
+                  {passSaving ? 'Updating…' : 'Update password'}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+    </Container>
+  )
 }

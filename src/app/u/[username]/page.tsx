@@ -1,240 +1,215 @@
 'use client'
-import { useEffect, useMemo, useState, useCallback } from 'react'
+
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import Image from 'next/image'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import data from '@/data/pokemon.json'
-import { GENS } from '@/lib/gens'
-import { spriteUrl } from '@/lib/sprites'
-import type { CSSProperties } from 'react'
+import { useAuth } from '@/components/auth-provider'
+import { useDex } from '@/hooks/use-dex'
+import { DexToolbar } from '@/components/dex/dex-toolbar'
+import { DexList } from '@/components/dex/dex-list'
+import { GenerationSectionSkeleton } from '@/components/dex/generation-section'
+import { dataErrorMessage } from '@/lib/errors'
+import { TOTAL_POKEMON } from '@/lib/gens'
+import type { Catch, Profile } from '@/lib/types'
+import {
+  Badge,
+  Button,
+  Card,
+  Container,
+  EmptyState,
+  ErrorState,
+  LinkButton,
+  PageHeader,
+  Progress,
+} from '@/components/ui'
 
-type Pokemon = { id: number; name: string; sprite: string }
-type Catch = { user_id: string; pokemon_id: number; caught_shiny: boolean }
-type User = { id: string; email: string | null }
-type Profile = { id: string; username: string; is_public: boolean }
-type Filter = 'all' | 'caught' | 'missing'
-type GenStyle = CSSProperties & { ['--gen-bg']?: string }
+type PublicProfile = Pick<Profile, 'id' | 'username' | 'is_public'>
 
-export default function PublicProfile() {
+type LoadState =
+  | { kind: 'loading' }
+  | { kind: 'missing' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; profile: PublicProfile }
+
+export default function PublicProfilePage() {
   const params = useParams<{ username: string }>()
-  const uname = String(params.username || '').toLowerCase()
+  const uname = String(params?.username ?? '').toLowerCase()
 
-  const [viewer, setViewer] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  // Viewer identity comes from the shared auth context — no extra request.
+  const { user: viewer } = useAuth()
+
+  const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [catches, setCatches] = useState<Catch[]>([])
-  const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
 
-  // gen1 open by default (stable)
-  const defaultOpen = useMemo(
-    () => Object.fromEntries(GENS.map(g => [g.key, g.key === 'gen1'])) as Record<string, boolean>,
-    []
-  )
-  const [open, setOpen] = useState<Record<string, boolean>>(() => defaultOpen)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setViewer({ id: data.user.id, email: data.user.email ?? null })
-    })
-  }, [])
-
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!uname) return
-      ; (async () => {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('id,username,is_public')
-          .ilike('username', uname)
-          .maybeSingle()
-          .returns<Profile>()
-        if (!prof) { setProfile(null); return }
-        setProfile(prof)
+    setState({ kind: 'loading' })
 
-        const { data: cats } = await supabase
-          .from('catches')
-          .select('user_id,pokemon_id,caught_shiny')
-          .eq('user_id', prof.id)
-          .returns<Catch[]>()
-        setCatches(cats || [])
-      })()
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,username,is_public')
+      .ilike('username', uname)
+      .maybeSingle<PublicProfile>()
+
+    if (profileError) {
+      setState({
+        kind: 'error',
+        message: dataErrorMessage(
+          profileError,
+          'We could not load this trainer.',
+          'profile',
+        ),
+      })
+      return
+    }
+    if (!profile) {
+      setState({ kind: 'missing' })
+      return
+    }
+
+    setState({ kind: 'ready', profile })
+
+    const { data: rows, error: catchesError } = await supabase
+      .from('catches')
+      .select('user_id,pokemon_id,caught_shiny')
+      .eq('user_id', profile.id)
+      .returns<Catch[]>()
+
+    // A private dex returns no rows under RLS rather than an error; either way
+    // an empty list is a valid state, so this never blocks the page.
+    if (catchesError) {
+      dataErrorMessage(catchesError, '', 'profile')
+      setCatches([])
+    } else {
+      setCatches(rows ?? [])
+    }
   }, [uname])
 
-  const isOwner = viewer?.id === profile?.id
-
-  const status = useCallback(
-    (pokeId: number) => catches.some(c => c.pokemon_id === pokeId && c.caught_shiny),
-    [catches]
-  )
-
-  const caughtCount = useMemo(
-    () => catches.filter(c => c.caught_shiny).length,
-    [catches]
-  )
-
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    return (data as Pokemon[]).filter(p => {
-      const has = status(p.id)
-      const byFilter = filter === 'all' ? true : filter === 'caught' ? has : !has
-      const bySearch =
-        !needle || p.name.toLowerCase().includes(needle) || p.id.toString() === needle.replace('#', '')
-      return byFilter && bySearch
-    })
-  }, [q, filter, status])
-
-  // matches in CURRENT filtered list (for auto-open)
-  const matchesByGen = useMemo(() => {
-    const m: Record<string, number> =
-      Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
-    for (const p of filtered) {
-      const g = GENS.find(gg => p.id >= gg.start && p.id <= gg.end)
-      if (g) m[g.key]++
-    }
-    return m
-  }, [filtered])
-
-  // overall per-gen progress (for banner tint + counts)
-  const haveByGen = useMemo(() => {
-    const m = Object.fromEntries(GENS.map(g => [g.key, 0])) as Record<string, number>
-    for (const c of catches) {
-      if (!c.caught_shiny) continue
-      const g = GENS.find(gg => c.pokemon_id >= gg.start && c.pokemon_id <= gg.end)
-      if (g) m[g.key]++
-    }
-    return m
-  }, [catches])
-
-  // auto-open gens with matches when searching
   useEffect(() => {
-    const hasQuery = q.trim() !== ''
-    if (!hasQuery) return
-    setOpen(() => {
-      const next: Record<string, boolean> = {}
-      for (const g of GENS) next[g.key] = matchesByGen[g.key] > 0
-      return next
-    })
-  }, [q, matchesByGen])
+    void load()
+  }, [load])
 
-  // reset to default when search cleared
-  useEffect(() => {
-    if (q.trim() === '') setOpen(defaultOpen)
-  }, [q, defaultOpen])
+  const dex = useDex(catches)
 
-  // 404
-  if (profile === null) {
+  /* --- Not found / error ------------------------------------------------ */
+  if (state.kind === 'missing') {
     return (
-      <main className="max-w-4xl mx-auto p-4">
-        <h1 className="text-2xl font-bold">User not found</h1>
-        <p className="mt-2">Go back to <Link href="/" className="underline">home</Link>.</p>
-      </main>
+      <Container width="md">
+        <PageHeader title="Trainer not found" />
+        <EmptyState
+          title={`No trainer named @${uname}`}
+          description="Check the spelling, or search for another trainer."
+          action={
+            <LinkButton href="/search" variant="primary">
+              Find trainers
+            </LinkButton>
+          }
+        />
+      </Container>
     )
   }
 
-  // privacy gate (optional but nice): hide grid if private & not owner
+  if (state.kind === 'error') {
+    return (
+      <Container width="md">
+        <PageHeader title="Trainer" />
+        <ErrorState
+          description={state.message}
+          action={
+            <Button variant="secondary" onClick={() => void load()}>
+              Try again
+            </Button>
+          }
+        />
+      </Container>
+    )
+  }
+
+  if (state.kind === 'loading') {
+    return (
+      <Container>
+        <PageHeader title="Loading trainer…" />
+        <span className="sr-only" role="status">
+          Loading trainer profile…
+        </span>
+        {Array.from({ length: 4 }, (_, i) => (
+          <GenerationSectionSkeleton key={i} />
+        ))}
+      </Container>
+    )
+  }
+
+  /* --- Ready ------------------------------------------------------------ */
+  const { profile } = state
+  const isOwner = viewer?.id === profile.id
   const locked = !profile.is_public && !isOwner
+  const pct = Math.round((dex.caughtCount / TOTAL_POKEMON) * 100)
 
   return (
-    <main className="max-w-7xl mx-auto p-4">
-      <header className="toolbar mb-4">
-        {/* left: title */}
-        <div><h1 className="text-2xl font-bold">@{profile.username}</h1></div>
-
-        {/* center: filter + search */}
-        <div className="center">
-          <select
-            className="border p-1"
-            value={filter}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value as Filter)}
-          >
-            <option value="all">All</option>
-            <option value="missing">Missing</option>
-            <option value="caught">Caught</option>
-          </select>
-          <input
-            className="border p-1"
-            placeholder="Search name or #id"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-
-        {/* right: pills */}
-        <div className="right">
-          <span className="pill">{caughtCount}/1025 caught</span>
-          {!profile.is_public && !isOwner && (<span className="pill">Private</span>)}
-          {isOwner && (<Link href="/settings" className="pill">Edit profile</Link>)}
-        </div>
-      </header>
+    <Container>
+      <PageHeader
+        title={`@${profile.username}`}
+        description={
+          locked
+            ? 'This trainer keeps their dex private.'
+            : `${dex.caughtCount} of ${TOTAL_POKEMON} shinies caught — ${pct}% complete.`
+        }
+        actions={
+          <>
+            {!profile.is_public && (
+              <Badge tone="neutral">{isOwner ? 'Private' : 'Private profile'}</Badge>
+            )}
+            {!locked && (
+              <Badge tone={dex.caughtCount > 0 ? 'shine' : 'neutral'}>
+                {dex.caughtCount}/{TOTAL_POKEMON}
+              </Badge>
+            )}
+            {isOwner && (
+              <LinkButton href="/" variant="secondary" size="sm">
+                Manage my dex
+              </LinkButton>
+            )}
+          </>
+        }
+      />
 
       {locked ? (
-        <div className="card">
-          <p className="text-sm">This profile is private.</p>
-        </div>
+        <Card padding="lg" className="mb-12">
+          <p className="text-sm text-ink-muted">
+            @{profile.username} has not made their shiny dex public.
+          </p>
+        </Card>
       ) : (
-        GENS.map(g => {
-          const sectionStyle: GenStyle = { ['--gen-bg']: `url('/gen/${g.key}.jpg')` }
-          const mons = filtered.filter(p => p.id >= g.start && p.id <= g.end)
-          const total = g.end - g.start + 1
-          const have = haveByGen[g.key] || 0
-          const pct = have / total
-          const bannerClass =
-            pct >= 1 ? 'gen-rainbow' :
-              pct >= 0.75 ? 'gen-gold' :
-                pct >= 0.50 ? 'gen-silver' :
-                  pct >= 0.25 ? 'gen-bronze' :
-                    ''
+        <>
+          <Progress
+            value={dex.caughtCount}
+            max={TOTAL_POKEMON}
+            tone="shine"
+            label={`Completion: ${dex.caughtCount} of ${TOTAL_POKEMON}`}
+            className="mb-5"
+          />
 
-          return (
-            <section key={g.key} className="gen-section" style={sectionStyle}>
-              <button className={`gen-header ${bannerClass}`} onClick={() => setOpen(prev => ({ ...prev, [g.key]: !prev[g.key] }))}>
-                <svg className={`chev ${open[g.key] ? 'open' : ''}`} viewBox="0 0 24 24" fill="none">
-                  <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="gen-title">{g.name}</span>
-                <span className="pill" style={{ marginLeft: 'auto' }}>{have}/{total}</span>
-              </button>
+          <DexToolbar
+            filter={dex.filter}
+            onFilterChange={dex.setFilter}
+            query={dex.query}
+            onQueryChange={dex.setQuery}
+            totalMatches={dex.totalMatches}
+            isFiltering={dex.isFiltering}
+          />
 
-              {open[g.key] && (
-                <ul className="poke-grid">
-                  {mons.map(p => {
-                    const has = status(p.id)
-                    return (
-                      <li key={p.id} className={`poke-card flex flex-col items-center justify-between ${has ? 'shine' : ''}`}>
-                        <div className="w-full flex items-center justify-between mb-1">
-                          <span className="text-[11px] font-medium opacity-80">#{p.id.toString().padStart(4, '0')}</span>
-                          <span title="Owner" className={`w-2.5 h-2.5 rounded-full ${has ? 'bg-green-500' : 'bg-gray-300'}`} />
-                        </div>
-                        <div className="flex justify-center items-center h-20">
-                          <Image
-                            src={spriteUrl(p.id, has)}
-                            alt={p.name}
-                            width={72}
-                            height={72}
-                            className="poke-sprite"
-                            loading="lazy"
-                            unoptimized
-                          />
-                        </div>
-                        <div className="text-center text-[11px] mt-1">{p.name}</div>
-
-                        {isOwner ? (
-                          // keep as view-only here; edit on Home (or swap to an inline toggle if you prefer)
-                          <Link href="/" className="mt-2 w-full btn btn-tonal text-center">Manage on Home</Link>
-                        ) : (
-                          <div className={`mt-2 w-full btn ${has ? 'btn-primary' : 'btn-tonal'} text-center`}>
-                            {has ? 'Shiny caught' : 'Missing'}
-                          </div>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
-          )
-        })
+          <div className="pb-12">
+            {/* Read-only: no onTogglePokemon, so cards render as status chips. */}
+            <DexList
+              generations={dex.generations}
+              toggleGen={dex.toggleGen}
+              isCaught={dex.isCaught}
+              isFiltering={dex.isFiltering}
+              totalMatches={dex.totalMatches}
+            />
+          </div>
+        </>
       )}
-    </main>
+    </Container>
   )
 }

@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shiny Tracker
 
-## Getting Started
+Track your shiny Pokémon collection across every generation. Next.js 15 (App
+Router) + Supabase, deployed on Vercel's free tier.
 
-First, run the development server:
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a `.env` file with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=…
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=…
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Both are public by design — the app is browser-only and access is enforced by
+Supabase Row Level Security. There are no server-side secrets.
 
-## Learn More
+Open <http://localhost:3000>.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command                            | Description                        |
+| ---------------------------------- | ---------------------------------- |
+| `npm run dev`                      | Dev server                         |
+| `npm run build`                    | Production build                   |
+| `npm run lint`                     | ESLint                             |
+| `npx tsc --noEmit`                 | Type check                         |
+| `npx tsx scripts/fetch-pokemon.ts` | Regenerate `src/data/pokemon.json` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Routes
 
-## Deploy on Vercel
+| Route           | Rendering | Description                    |
+| --------------- | --------- | ------------------------------ |
+| `/`             | static    | Your shiny dex (auth required) |
+| `/login`        | static    | Sign in / create account       |
+| `/search`       | static    | Find trainers by username      |
+| `/settings`     | static    | Profile and password           |
+| `/u/[username]` | dynamic   | A trainer's public dex         |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — project layout, design
+  tokens, UI primitives, data flow, stable contracts, efficiency rules.
+- **[docs/ADDING-A-GENERATION.md](docs/ADDING-A-GENERATION.md)** — how to add
+  Gen 10 and beyond (it's one line).
+
+## Before you change anything
+
+Two rules that are easy to break by accident:
+
+1. `src/app/globals.css` must start with `@import "tailwindcss"`. The v3
+   directives (`@tailwind base` …) silently disable most of Tailwind under v4.
+2. This app is tuned for free-tier hosting: no polling, no Realtime, no SSR, no
+   image optimisation, and collapsed generations render nothing. See the
+   efficiency section of the architecture doc before adding data fetching.

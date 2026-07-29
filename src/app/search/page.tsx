@@ -1,38 +1,24 @@
 'use client'
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 
-type Row = { username: string }
+import { Container, PageHeader } from '@/components/ui'
+import { TrainerSearch } from '@/components/trainer-search'
 
-export default function Search() {
-  const [q, setQ] = useState('')
-  const [rows, setRows] = useState<Row[]>([])
-
-  useEffect(() => {
-    const id = setTimeout(async () => {
-      if (!q) { setRows([]); return }
-      const { data } = await supabase
-        .from('profiles')
-        .select('username')
-        .ilike('username', `%${q}%`)
-        .limit(20)
-      setRows((data || []) as Row[])
-    }, 250)
-    return () => clearTimeout(id)
-  }, [q])
-
+/**
+ * Full-page trainer lookup.
+ *
+ * Shares TrainerSearch with the header, so the debounce, row limit and query
+ * shape are defined once. Kept at the original 20-row limit.
+ */
+export default function SearchPage() {
   return (
-    <main className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Find Trainers</h1>
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="username"/>
-      <ul className="mt-4 space-y-2">
-        {rows.map(r=>(
-          <li key={r.username} className="card">
-            <Link href={`/u/${r.username}`}>@{r.username}</Link>
-          </li>
-        ))}
-      </ul>
-    </main>
+    <Container width="md">
+      <PageHeader
+        title="Find trainers"
+        description="Search by username to view another trainer's shiny dex."
+      />
+      <div className="pb-12">
+        <TrainerSearch limit={20} layout="inline" autoFocus />
+      </div>
+    </Container>
   )
 }

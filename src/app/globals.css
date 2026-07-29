@@ -1,239 +1,215 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ---------------------------------------------------------------------------
+ * Shiny Tracker — global stylesheet
+ *
+ * Tailwind v4 entry point. NOTE: this file previously used the v3 directives
+ * (`@tailwind base/components/utilities`), which under v4 emit the utilities
+ * layer *without* loading the default theme. Every theme-dependent utility
+ * (spacing, colours, font sizes, containers) was therefore silently dropped
+ * from the build. `@import "tailwindcss"` is the v4 equivalent and loads
+ * theme + preflight + utilities together.
+ *
+ * Design tokens live in the @theme block below and are the single source of
+ * truth. They are exposed both as Tailwind utilities (`bg-surface`,
+ * `text-ink-muted`, `rounded-lg`, …) and as plain CSS variables for the few
+ * hand-written rules further down that genuinely need CSS.
+ * ------------------------------------------------------------------------ */
 
-/* === Theme tokens (dark, Pokémon accents) === */
-:root{
-  --bg:        #0b0f14;   /* app background */
-  --surf-1:    #10161f;   /* app bar / elevated */
-  --surf-2:    #0f1520;   /* cards */
-  --chip:      #1a2230;   /* small pills */
-  --text:      #e6edf3;
-  --text-dim:  #95a1ad;
-  --border:    #243041;   /* subtle */
-  --accent:    #2a75bb;   /* Poké blue */
-  --shine:     #ffcb05;   /* Pikachu yellow */
-  --radius:    8px;       /* flatter look */
+@import "tailwindcss";
+
+@theme {
+  /* -- Surfaces ---------------------------------------------------------- */
+  --color-canvas: #0a0e14; /* page background */
+  --color-surface: #111823; /* cards, panels */
+  --color-surface-hover: #161f2d; /* hover / elevated */
+  --color-chip: #1a2432; /* pills, inert chips */
+
+  /* -- Lines ------------------------------------------------------------- */
+  --color-line: #222e40; /* default border */
+  --color-line-strong: #33445c; /* emphasised border */
+
+  /* -- Text -------------------------------------------------------------- */
+  --color-ink: #e8eef5; /* primary        ~15:1 on canvas */
+  --color-ink-muted: #94a3b5; /* secondary      ~7:1  on surface */
+  --color-ink-subtle: #6b7c91; /* tertiary/meta  ~4.6:1 on surface */
+
+  /* -- Brand ------------------------------------------------------------- */
+  /* Poke blue. Kept at the original value: white text on it measures
+   * 4.88:1, which clears WCAG AA for normal text. Do not lighten. */
+  --color-brand: #2a75bb;
+  --color-brand-hover: #3282c9;
+  --color-brand-ink: #ffffff;
+  --color-brand-soft: #16293d;
+
+  /* Pikachu yellow — reserved for "shiny" semantics only. */
+  --color-shine: #ffcb05;
+  --color-shine-soft: #2a2411;
+
+  /* -- Status ------------------------------------------------------------ */
+  --color-success: #3fb950;
+  --color-success-soft: #10241a;
+  --color-danger: #f0616d;
+  --color-danger-soft: #2b1418;
+  --color-warning: #d9a13b;
+  --color-warning-soft: #2a2011;
+
+  /* -- Radii — deliberately restrained, not pill-shaped ------------------ */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* -- Elevation — subtle; depth comes from borders, not glow ------------ */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 2px 8px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.45);
+
+  /* -- Motion ------------------------------------------------------------ */
+  --transition-fast: 120ms;
+  --transition-base: 180ms;
+
+  /* -- Layout ------------------------------------------------------------ */
+  --spacing-header: 3.5rem; /* app header height; used for sticky offsets */
 }
 
-/* Base */
-html,body{ height:100%; background:var(--bg); color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial;
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-}
-::selection{ background: rgba(255,203,5,.20); }
+/* ---------------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------------ */
 
-/* Minimal scrollbar */
-*::-webkit-scrollbar{ width:8px; height:8px; }
-*::-webkit-scrollbar-thumb{ background:#3a4a62; border-radius:999px; }
-
-/* App bar */
-.poke-header{
-  position: sticky; top:0; z-index:20;
-  background: linear-gradient(180deg, rgba(16,22,31,.95), rgba(16,22,31,.80));
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--border);
+:root {
+  color-scheme: dark;
+  /* Sticky offset for generation headers. Previously this referenced
+   * --nav-h / --toolbar-h, which were never defined — the calc() was
+   * invalid and position:sticky silently failed on every header. */
+  --sticky-offset: var(--spacing-header);
 }
 
-/* Cards (flat-ish) */
-.card{
-  background: var(--surf-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  box-shadow: 0 6px 16px rgba(0,0,0,.30);
+html {
+  scroll-behavior: smooth;
 }
 
-/* Pokémon item card */
-.poke-card{
-  background: var(--surf-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px;
-  box-shadow: 0 6px 16px rgba(0,0,0,.30);
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto,
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Belt-and-braces against horizontal overflow on small screens. */
+  overflow-x: hidden;
 }
 
-/* Buttons (material-ish) */
-.btn{
-  display:inline-flex; align-items:center; justify-content:center;
-  padding: 10px 14px; font-weight:600; border-radius: var(--radius);
-  border: 1px solid transparent; cursor:pointer;
-}
-.btn-primary{ background: var(--accent); color:white; }
-.btn-primary:hover{ filter: brightness(1.05); }
-.btn-tonal{ background: #132032; color: var(--text); border-color: #1f2c3f; }
-.btn-tonal:hover{ background:#17273d; }
-.btn-lg{ padding:12px 16px; font-size:15px; border-radius:8px; }
-
-/* Pills */
-.pill{
-  display:inline-flex; align-items:center; gap:8px;
-  padding: 6px 10px; border-radius: var(--radius);
-  background: var(--chip); border:1px solid var(--border);
-  color: var(--text); font-size: 12px;
+::selection {
+  background: color-mix(in srgb, var(--color-shine) 25%, transparent);
 }
 
-/* Inputs */
-input, select{
-  background:#0f1826; color:var(--text);
-  border:1px solid var(--border); border-radius: var(--radius);
-  padding:8px 10px; font-size:14px; outline:none;
-}
-input::placeholder{ color:var(--text-dim); }
-input:focus, select:focus{
-  border-color: var(--accent); 
-  box-shadow:0 0 0 3px rgba(42,117,187,.25);
-  outline: none;
-}
-.input-md{
-  box-sizing: border-box;
-  height: 38px;
-  padding: 8px 12px;
-  line-height: 20px;
-  border-radius: 6px;
-}
-.input-lg  { box-sizing:border-box; height:48px; padding:12px 14px; line-height:22px; border-radius:8px; }
-
-.logo{ border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
-.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-
-/* Grid that auto-fits as many mons per row as possible */
-.poke-grid{
-  display:grid; gap:10px; list-style:none; margin:0; padding:0;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+/* Visible, consistent focus ring for every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--color-brand-hover);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-/* Sprite polish */
-.poke-sprite{ image-rendering: pixelated; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
-
-/* Trainer search dropdown */
-.results-panel{
-  position:absolute; top:100%; left:0; margin-top:6px; width:260px; max-height:320px; overflow:auto;
-  background:var(--surf-2); border:1px solid var(--border); border-radius: var(--radius);
-  box-shadow:0 8px 24px rgba(0,0,0,.45); z-index:50;
+/* Slim scrollbars that match the dark surface. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
-.result-item{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:8px 12px; color:var(--text); text-decoration:none;
-  border-bottom:1px solid rgba(255,255,255,.03);
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-.result-item:last-child{ border-bottom:0; }
-.result-item:hover{ background: rgba(255,255,255,.04); }
-.result-item .private{ color:var(--text-dim); font-size:12px; }
-
-/* Shiny glow (keep!) */
-.shine{
-  background:
-    radial-gradient(circle at 50% 35%, rgba(255,203,5,.18) 0%, rgba(255,203,5,.10) 40%, rgba(0,0,0,0) 70%),
-    var(--surf-2);
-  border-color:#3a3f48;
-  box-shadow: 0 6px 18px rgba(255,203,5,.12), 0 6px 16px rgba(0,0,0,.35);
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
 }
-/* Auth layout tweaks */
-.auth-card { max-width: 460px; } 
-
-/* Auth: title + spacing */
-.auth-title{
-  text-align:center; font-weight:900; font-size:28px; letter-spacing:.4px;
-  background: linear-gradient(90deg, var(--shine), #ffd86a, var(--accent));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  text-shadow: 0 0 14px rgba(255,203,5,.25); margin-bottom:4px;
-}
-.auth-subtitle{ text-align:center; font-size:13px; color:var(--text-dim); margin-bottom:14px; }
-
-/* compact, even spacing between fields */
-.form-stack{ display:flex; flex-direction:column; gap:12px; }
-.group{ display:flex; flex-direction:column; gap:6px; }
-
-/* Tabs */
-.tabs{
-  display:flex; gap:0; background: var(--chip);
-  border:1px solid var(--border); border-radius:10px; padding:4px;
-}
-.tab{
-  flex:1; text-align:center; font-weight:700; color:var(--text-dim);
-  padding:10px 12px; border-radius:8px; transition:background .15s;
-}
-.tab:hover{ background: rgba(255,255,255,.05); }
-.tab.active{ background: var(--accent); color:#fff; }
-
-/* Toolbar: left / center / right */
-.toolbar{
-  display:grid; gap:10px; align-items:center;
-  grid-template-columns: 1fr minmax(260px, 520px) 1fr;
-}
-.toolbar .center{ justify-self:center; display:flex; gap:8px; }
-.toolbar .right{ justify-self:end; display:flex; gap:8px; align-items:center; }
-@media (max-width: 640px){
-  .toolbar{ grid-template-columns: 1fr; }
-  .toolbar .center, .toolbar .right{ justify-self: stretch; }
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Accordion per generation */
-.gen-section{ margin-bottom: 18px; }
-.gen-header{
-  position: sticky;
-  top: calc(var(--nav-h) + var(--toolbar-h));
-  z-index: 30;
+/* Respect reduced-motion preferences globally. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
-  /* make it span the whole content width */
-  width: 100%;
-  box-sizing: border-box;
+/* ---------------------------------------------------------------------------
+ * Component-level CSS
+ *
+ * Everything that can be expressed as Tailwind utilities lives in the React
+ * components under src/components/ui. Only rules that genuinely need CSS —
+ * layered backgrounds, pixel-art rendering, keyframes — are kept here.
+ * ------------------------------------------------------------------------ */
 
-  /* layout */
-  display: flex;
-  align-items: center;
-  margin-bottom: 1em;
-  gap: 10px;
-  padding: 10px 12px;
-  min-height: 56px;         /* <- bump if you want a taller bar */
-  border-radius: 12px;
-  border: 1px solid var(--border, rgba(255,255,255,.12));
+/* Pokemon sprites are low-res pixel art; never smooth them. */
+.sprite {
+  image-rendering: pixelated;
+}
 
-  /* background image + dark overlay (your CSS variable from <section style=...>) */
-  background-image:
-    linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.75)),
-    var(--gen-bg);
+/* Generation banner.
+ *
+ * Three background layers, painted back to front:
+ *   1. a per-generation fallback gradient (always present)
+ *   2. the optional /gen/<key>.jpg artwork (absent -> layer simply not painted,
+ *      so an unknown/new generation degrades to the gradient instead of a
+ *      broken banner)
+ *   3. a darkening scrim so white text stays legible over any artwork
+ *
+ * --gen-image and --gen-hue are supplied inline by GenerationBanner. */
+.gen-banner {
+  --gen-hue: 210;
+  background-image: linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.72),
+      rgb(0 0 0 / 0.78)
+    ),
+    var(--gen-image, none),
+    linear-gradient(
+      135deg,
+      hsl(var(--gen-hue) 45% 22%),
+      hsl(calc(var(--gen-hue) + 40) 40% 12%)
+    );
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
-.gen-title{ font-weight:600; color:white;}
-.gen-numbers { color: gray }
-.chev{ width:16px; height:16px; transition:transform .15s ease; opacity:.85; color: white}
-.chev.open{ transform: rotate(180deg); }
 
-/* Generation header shines (tiered) */
-.gen-header.gen-bronze{
-  border: 2px solid transparent;
-  border-color:#b27b46;
-  box-shadow:
-    inset 0 0 0 1px rgba(178,123,70,.35),
-    0 6px 18px rgba(178,123,70,.12);
+/* Completion tiers. Each tier pairs a colour with a distinct border weight so
+ * the state is not conveyed by colour alone; the accessible name on the
+ * banner also spells the tier out. */
+.gen-tier-bronze {
+  border-color: #b27b46;
+  box-shadow: inset 0 0 0 1px rgb(178 123 70 / 0.35);
+}
+.gen-tier-silver {
+  border-color: #c4ccd8;
+  box-shadow: inset 0 0 0 1px rgb(196 204 216 / 0.35);
+}
+.gen-tier-gold {
+  border-color: #f0c96a;
+  box-shadow: inset 0 0 0 1px rgb(240 201 106 / 0.45),
+    0 0 20px rgb(240 201 106 / 0.12);
 }
 
-.gen-header.gen-silver{
-  border: 2px solid transparent;
-  border-color:#c4ccd8;
-  box-shadow:
-    inset 0 0 0 1px rgba(196,204,216,.35),
-    0 6px 18px rgba(196,204,216,.12);
-}
-
-.gen-header.gen-gold{
-  border: 2px solid transparent;
-  border-color:#f0c96a;
-  box-shadow:
-    inset 0 0 0 1px rgba(240,201,106,.45),
-    0 8px 22px rgba(240,201,106,.16);
-}
-
-.gen-header.gen-rainbow {
-  border: 2px solid transparent;
-
-  background-image:
-    linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,.75)),
-    var(--gen-bg),
+/* Completed generation: animated rainbow border via a border-box gradient
+ * layer. Pure CSS — no animation library. */
+.gen-tier-rainbow {
+  border-color: transparent;
+  background-image: linear-gradient(180deg, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.78)),
+    var(--gen-image, none),
+    linear-gradient(
+      135deg,
+      hsl(var(--gen-hue) 45% 22%),
+      hsl(calc(var(--gen-hue) + 40) 40% 12%)
+    ),
     linear-gradient(
       133deg,
       #ff6ec7,
@@ -244,10 +220,41 @@ input:focus, select:focus{
       #7d5fff,
       #ff6ec7
     );
-
-  background-origin: padding-box, padding-box, border-box;
-  background-clip: padding-box, padding-box, border-box;
+  background-origin: padding-box, padding-box, padding-box, border-box;
+  background-clip: padding-box, padding-box, padding-box, border-box;
 }
 
+/* Shiny card treatment — a soft gold wash behind the sprite. */
+.card-shine {
+  background-image: radial-gradient(
+    circle at 50% 35%,
+    rgb(255 203 5 / 0.16) 0%,
+    rgb(255 203 5 / 0.08) 45%,
+    transparent 72%
+  );
+}
 
-
+/* Skeleton shimmer. */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.05),
+    transparent
+  );
+  animation: shimmer 1.6s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    display: none;
+  }
+}
