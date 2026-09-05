@@ -3,16 +3,12 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { Brand } from '@/components/nav'
+import { Icon } from '@/components/icon'
+import { spriteUrl } from '@/lib/sprites'
+import { GENS, TOTAL_POKEMON } from '@/lib/gens'
 import { authErrorMessage, dataErrorMessage } from '@/lib/errors'
-import {
-  Alert,
-  Button,
-  Card,
-  Input,
-  Spinner,
-  TabPanel,
-  Tabs,
-} from '@/components/ui'
+import { Alert, Button, Input, Spinner, TabPanel, Tabs } from '@/components/ui'
 
 type Mode = 'signin' | 'signup'
 
@@ -74,7 +70,11 @@ export default function Login() {
         if (error) {
           setFeedback({
             tone: 'error',
-            text: dataErrorMessage(error, 'Could not look up that username.', 'signin'),
+            text: dataErrorMessage(
+              error,
+              'Could not look up that username.',
+              'signin',
+            ),
           })
           return
         }
@@ -90,11 +90,19 @@ export default function Login() {
         password,
       })
       if (signErr) {
-        setFeedback({ tone: 'error', text: authErrorMessage(signErr, 'signin') })
+        setFeedback({
+          tone: 'error',
+          text: authErrorMessage(signErr, 'signin'),
+        })
         return
       }
 
       window.location.href = '/'
+    } catch {
+      setFeedback({
+        tone: 'error',
+        text: 'We could not connect. Check your connection and try again.',
+      })
     } finally {
       setLoading(false)
     }
@@ -131,7 +139,11 @@ export default function Login() {
       if (lookupErr) {
         setFeedback({
           tone: 'error',
-          text: dataErrorMessage(lookupErr, 'Could not check that username.', 'signup'),
+          text: dataErrorMessage(
+            lookupErr,
+            'Could not check that username.',
+            'signup',
+          ),
         })
         return
       }
@@ -173,133 +185,198 @@ export default function Login() {
         tone: 'success',
         text: 'Account created. Check your email if confirmation is required, then sign in.',
       })
+    } catch {
+      setFeedback({
+        tone: 'error',
+        text: 'We could not connect. Check your connection and try again.',
+      })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <Image
-            src="/icon-192.png"
-            alt=""
-            width={52}
-            height={52}
-            className="rounded-xl shadow-md"
-            priority
-          />
-          <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink">
-            Shiny Tracker
-          </h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Track your shiny dex across every generation.
+    <div className="auth-page">
+      <aside className="auth-story" aria-label="About Shiny Tracker">
+        <Brand />
+        <div className="auth-story-center">
+          <p className="eyebrow">FOR THE ONE-IN-THOUSANDS MOMENTS</p>
+          <h2>
+            Every shiny.
+            <br />
+            <em>
+              A story worth
+              <br />
+              keeping.
+            </em>
+          </h2>
+          <p className="auth-story-copy">
+            Your collection, from the first sparkle to the final dex entry.
+          </p>
+          <div className="auth-specimens">
+            {[
+              { id: 1, name: 'Bulbasaur' },
+              { id: 6, name: 'Charizard' },
+              { id: 9, name: 'Blastoise' },
+            ].map((p) => (
+              <div key={p.id} className="auth-specimen">
+                <span>#{String(p.id).padStart(4, '0')}</span>
+                <Image
+                  src={spriteUrl(p.id, true)}
+                  width={112}
+                  height={112}
+                  alt={`Shiny ${p.name}`}
+                  className="sprite"
+                  unoptimized
+                />
+                <p>{p.name}</p>
+                <small>✦ Shiny variant</small>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="auth-story-footer">
+          <span>{TOTAL_POKEMON.toLocaleString()} Pokémon</span>
+          <span>{GENS.length} regions</span>
+          <span>Your journey</span>
+        </div>
+      </aside>
+      <div className="auth-form-side">
+        <div className="auth-form-wrap">
+          <div className="auth-mobile-brand">
+            <Brand />
+          </div>
+          <div className="auth-form-heading">
+            <p className="eyebrow">YOUR FIELD JOURNAL</p>
+            <h1>
+              {mode === 'signin'
+                ? 'Welcome back, trainer.'
+                : 'Start your collection.'}
+            </h1>
+            <p>
+              {mode === 'signin'
+                ? 'Your next chapter starts with a little sparkle.'
+                : 'A home for every shiny you find along the way.'}
+            </p>
+          </div>
+          <div>
+            <Tabs
+              items={MODES}
+              value={mode}
+              onChange={switchMode}
+              label="Authentication mode"
+              idPrefix="auth"
+              className="mb-5"
+            />
+
+            {feedback && (
+              <Alert
+                tone={feedback.tone}
+                className="mb-4"
+                title={
+                  feedback.tone === 'error' ? 'Could not continue' : 'Success'
+                }
+              >
+                {feedback.text}
+              </Alert>
+            )}
+
+            {mode === 'signin' ? (
+              <TabPanel value="signin" idPrefix="auth">
+                <form
+                  onSubmit={handleSignIn}
+                  className="flex flex-col gap-4"
+                  noValidate
+                >
+                  <Input
+                    label="Username or email"
+                    placeholder="ash_ketchum or ash@kanto.example"
+                    value={identifier}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    error={fieldErrors.identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                  />
+                  <Input
+                    label="Password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    autoComplete="current-password"
+                    error={fieldErrors.password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    disabled={loading}
+                    className="mt-1"
+                  >
+                    {loading && <Spinner className="size-4" />}
+                    {loading ? 'Signing in…' : 'Sign in'}
+                    {!loading && <Icon name="arrow" />}
+                  </Button>
+                </form>
+              </TabPanel>
+            ) : (
+              <TabPanel value="signup" idPrefix="auth">
+                <form
+                  onSubmit={handleSignUp}
+                  className="flex flex-col gap-4"
+                  noValidate
+                >
+                  <Input
+                    label="Email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    autoComplete="email"
+                    error={fieldErrors.email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <Input
+                    label="Username"
+                    placeholder="ash_ketchum"
+                    value={username}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    hint="3–20 characters. Lowercase letters, numbers and underscore."
+                    error={fieldErrors.username}
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                  <Input
+                    label="Password"
+                    type="password"
+                    placeholder="Minimum 6 characters"
+                    value={password}
+                    autoComplete="new-password"
+                    error={fieldErrors.password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    disabled={loading}
+                    className="mt-1"
+                  >
+                    {loading && <Spinner className="size-4" />}
+                    {loading ? 'Creating account…' : 'Create account'}
+                  </Button>
+                </form>
+              </TabPanel>
+            )}
+          </div>
+          <p className="auth-footnote">
+            <Icon name="lock" />
+            Your collection stays with your account.
           </p>
         </div>
-
-        <Card padding="lg">
-          <Tabs
-            items={MODES}
-            value={mode}
-            onChange={switchMode}
-            label="Authentication mode"
-            idPrefix="auth"
-            className="mb-5"
-          />
-
-          {feedback && (
-            <Alert
-              tone={feedback.tone}
-              className="mb-4"
-              title={feedback.tone === 'error' ? 'Could not continue' : 'Success'}
-            >
-              {feedback.text}
-            </Alert>
-          )}
-
-          {mode === 'signin' ? (
-            <TabPanel value="signin" idPrefix="auth">
-              <form onSubmit={handleSignIn} className="flex flex-col gap-4" noValidate>
-                <Input
-                  label="Username or email"
-                  placeholder="ash_ketchum or ash@kanto.example"
-                  value={identifier}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  error={fieldErrors.identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                />
-                <Input
-                  label="Password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  autoComplete="current-password"
-                  error={fieldErrors.password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  disabled={loading}
-                  className="mt-1"
-                >
-                  {loading && <Spinner className="size-4" />}
-                  {loading ? 'Signing in…' : 'Sign in'}
-                </Button>
-              </form>
-            </TabPanel>
-          ) : (
-            <TabPanel value="signup" idPrefix="auth">
-              <form onSubmit={handleSignUp} className="flex flex-col gap-4" noValidate>
-                <Input
-                  label="Email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  autoComplete="email"
-                  error={fieldErrors.email}
-                  onChange={e => setEmail(e.target.value)}
-                />
-                <Input
-                  label="Username"
-                  placeholder="ash_ketchum"
-                  value={username}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  hint="3–20 characters. Lowercase letters, numbers and underscore."
-                  error={fieldErrors.username}
-                  onChange={e => setUsername(e.target.value)}
-                />
-                <Input
-                  label="Password"
-                  type="password"
-                  placeholder="Minimum 6 characters"
-                  value={password}
-                  autoComplete="new-password"
-                  error={fieldErrors.password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  disabled={loading}
-                  className="mt-1"
-                >
-                  {loading && <Spinner className="size-4" />}
-                  {loading ? 'Creating account…' : 'Create account'}
-                </Button>
-              </form>
-            </TabPanel>
-          )}
-        </Card>
       </div>
     </div>
   )

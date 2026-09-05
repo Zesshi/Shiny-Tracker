@@ -44,6 +44,10 @@ Open <http://localhost:3000>.
 
 ## Documentation
 
+- **[docs/REPOSITORY-OVERVIEW.md](docs/REPOSITORY-OVERVIEW.md)** — what the
+  app does, route behavior, database contracts, and findings from the source review.
+- **[docs/REDESIGN.md](docs/REDESIGN.md)** — redesign changes and local testing guide.
+
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — project layout, design
   tokens, UI primitives, data flow, stable contracts, efficiency rules.
 - **[docs/ADDING-A-GENERATION.md](docs/ADDING-A-GENERATION.md)** — how to add

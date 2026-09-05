@@ -42,7 +42,7 @@ export function authErrorMessage(error: SupabaseLikeError, scope = 'auth'): stri
 
 /** Message for an error returned by a PostgREST query. Never echoes details. */
 export function dataErrorMessage(
-  error: SupabaseLikeError,
+  error: unknown,
   fallback = GENERIC,
   scope = 'data',
 ): string {

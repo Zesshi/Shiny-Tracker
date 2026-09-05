@@ -13,7 +13,7 @@
 
 /** The only hand-authored data per generation. */
 type GenerationSource = {
-  /** Stable identifier. Also the banner filename: /gen/<key>.jpg */
+  /** Stable identifier. Also the banner filename: /gen/<key>.webp */
   key: string
   /** Region name, e.g. "Kanto". Combined with the ordinal for display. */
   region: string
@@ -22,21 +22,23 @@ type GenerationSource = {
   end: number
   /**
    * Optional hue (0-360) for the banner fallback gradient shown when no
-   * artwork exists at /gen/<key>.jpg. Derived from position when omitted.
+   * artwork exists at /gen/<key>.webp. Derived from position when omitted.
    */
   hue?: number
+  /** Vertical focal point (0–100%) for shallow desktop artwork crops. */
+  bannerFocus?: number
 }
 
 const GENERATION_SOURCE: readonly GenerationSource[] = [
-  { key: 'gen1', region: 'Kanto', start: 1, end: 151, hue: 6 },
+  { key: 'gen1', region: 'Kanto', start: 1, end: 151, hue: 6, bannerFocus: 24 },
   { key: 'gen2', region: 'Johto', start: 152, end: 251, hue: 42 },
-  { key: 'gen3', region: 'Hoenn', start: 252, end: 386, hue: 150 },
-  { key: 'gen4', region: 'Sinnoh', start: 387, end: 493, hue: 205 },
+  { key: 'gen3', region: 'Hoenn', start: 252, end: 386, hue: 150, bannerFocus: 24 },
+  { key: 'gen4', region: 'Sinnoh', start: 387, end: 493, hue: 205, bannerFocus: 18 },
   { key: 'gen5', region: 'Unova', start: 494, end: 649, hue: 260 },
-  { key: 'gen6', region: 'Kalos', start: 650, end: 721, hue: 320 },
-  { key: 'gen7', region: 'Alola', start: 722, end: 809, hue: 25 },
+  { key: 'gen6', region: 'Kalos', start: 650, end: 721, hue: 320, bannerFocus: 16 },
+  { key: 'gen7', region: 'Alola', start: 722, end: 809, hue: 25, bannerFocus: 20 },
   { key: 'gen8', region: 'Galar', start: 810, end: 905, hue: 285 },
-  { key: 'gen9', region: 'Paldea', start: 906, end: 1025, hue: 350 },
+  { key: 'gen9', region: 'Paldea', start: 906, end: 1025, hue: 350, bannerFocus: 24 },
 ]
 
 export type Generation = {
@@ -57,6 +59,7 @@ export type Generation = {
   name: string
   /** Path to the banner artwork. May 404 — the UI falls back to a gradient. */
   banner: string
+  bannerFocus: number
   hue: number
 }
 
@@ -74,7 +77,8 @@ export const GENS: readonly Generation[] = GENERATION_SOURCE.map((g, i) => {
     total: g.end - g.start + 1,
     shortLabel: `Gen ${number}`,
     name: `Gen ${number} • ${g.region}`,
-    banner: `/gen/${g.key}.jpg`,
+    banner: `/gen/${g.key}.webp`,
+    bannerFocus: g.bannerFocus ?? 36,
     hue: g.hue ?? (number * 40) % 360,
   }
 })

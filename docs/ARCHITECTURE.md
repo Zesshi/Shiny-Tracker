@@ -54,10 +54,10 @@ utilities. **Change them there and nowhere else.**
 | Brand    | `brand`, `brand-hover`, `brand-ink`, `brand-soft`                     |
 | Shiny    | `shine`, `shine-soft`                                                 |
 | Status   | `success`, `danger`, `warning` (+ `-soft` variants)                   |
-| Radii    | `--radius-sm/md/lg/xl` (6/8/12/16px)                                  |
+| Radii    | `--radius-sm/md/lg/xl` (6/10/16/22px)                                 |
 | Shadows  | `--shadow-sm/md/lg`                                                   |
 | Motion   | `--transition-fast` (120ms), `--transition-base` (180ms)              |
-| Layout   | `--spacing-header` (3.5rem), also the sticky offset                   |
+| Layout   | `--spacing-header` (4.5rem desktop / 4rem mobile), sticky toolbar offset |
 
 Usage: `bg-surface`, `text-ink-muted`, `border-line`, `rounded-lg`, etc.
 
@@ -76,11 +76,12 @@ toggle; adding one would mean auditing every token pair for contrast.
 
 ### Colour and contrast
 
-`--color-brand` is `#2a75bb`. White text on it measures **4.88:1**, which clears
-WCAG AA for normal text. Do not lighten it — a brighter blue drops below 4.5:1.
+`--color-brand` is mint `#a8e8ce`, paired with dark `--color-brand-ink`
+`#10261d` on primary buttons. Gold `--color-shine` (`#f1ce77`) identifies caught
+shinies. Use the paired foreground token rather than white on mint buttons.
 
 State is never signalled by colour alone. Caught Pokémon carry a text label
-("Shiny ✦" / "Mark shiny"), an `aria-pressed` state, a filled marker and the
+("Shiny caught" / "Mark shiny"), an `aria-pressed` state, a filled marker and the
 gold wash. Completion tiers pair colour with border weight and a text tier name
 in the section's screen-reader heading.
 
@@ -207,6 +208,27 @@ These behaviours are load-bearing. Preserve them.
 
 The collapsed-accordion rule matters most: only Gen 1 is open on load, so first
 paint requests ~151 sprites rather than ~1025.
+
+The collector redesign also preserves the existing `sprites-v4` cache while
+versioning the document/asset caches independently. A UI update therefore does
+not discard immutable sprite downloads. Filtering and summary counts still
+reuse the original catch read; collapsed grids remain unmounted.
+
+### Collector interface
+
+Desktop navigation uses a fixed rail and compact top bar; phones use bottom
+navigation with safe-area spacing. The existing primitives remain unchanged and
+are composed with application-level CSS. `CollectionOverview` is shared between
+the personal and public dex. Whole-card catch controls expose pressed, pending,
+and read-only states. Per-entry write locks and targeted rollback prevent a
+failed save from undoing a different entry; the toggle callback remains stable
+so memoized cards can skip unrelated updates. Save notices remain visible even
+when the user is far down a generation.
+
+Development output goes to `.next-dev`; production output stays in `.next` so
+production verification cannot overwrite the running local preview. Both are
+ignored. Run `node scripts/verify-ui.cjs` for local render checks of the lazy
+grid, direct images, read-only/pending cards, and collection summaries.
 
 ### Things to avoid
 

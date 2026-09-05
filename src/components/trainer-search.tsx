@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/cn'
 import { Badge, Input, Spinner } from '@/components/ui'
 import type { TrainerSummary } from '@/lib/types'
+import { Icon } from '@/components/icon'
 
 const SearchIcon = (
   <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4 fill-current">
@@ -58,6 +59,8 @@ export function TrainerSearch({
 
     let active = true
     setLoading(true)
+    setFailed(false)
+    setRows([])
 
     const timer = setTimeout(async () => {
       const { data, error } = await supabase
@@ -120,20 +123,38 @@ export function TrainerSearch({
         </p>
       ) : (
         <ul className="list-none">
-          {rows.map(row => (
+          {rows.map((row) => (
             <li key={row.username}>
               <Link
                 href={`/u/${row.username}`}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  'flex items-center justify-between gap-3 px-3 py-2.5 text-sm',
+                  'trainer-result flex items-center justify-between gap-3 px-3 py-2.5 text-sm',
                   'text-ink transition-colors duration-(--transition-fast)',
                   'hover:bg-surface-hover focus-visible:bg-surface-hover',
                   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-hover',
                 )}
               >
-                <span className="truncate">@{row.username}</span>
+                <span className="trainer-avatar" aria-hidden="true">
+                  {row.username?.[0]?.toUpperCase() ?? 'T'}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">
+                    @{row.username}
+                  </span>
+                  {layout === 'inline' && (
+                    <span className="mt-1 block text-xs text-ink-muted">
+                      {row.is_public
+                        ? 'Explore shiny collection'
+                        : 'Collection is private'}
+                    </span>
+                  )}
+                </span>
                 {!row.is_public && <Badge tone="neutral">Private</Badge>}
+                <Icon
+                  name={row.is_public ? 'arrow' : 'lock'}
+                  className="text-ink-subtle"
+                />
               </Link>
             </li>
           ))}
@@ -148,17 +169,17 @@ export function TrainerSearch({
         label="Find a trainer by username"
         hideLabel
         type="search"
-        placeholder="Find @username"
+        placeholder={
+          layout === 'inline' ? 'Search by trainer username…' : 'Find @username'
+        }
         value={query}
         autoFocus={autoFocus}
-        onChange={e => {
+        onChange={(e) => {
           setQuery(e.target.value)
           setOpen(true)
         }}
         onFocus={() => setOpen(true)}
-        leading={
-          loading ? <Spinner className="size-4" /> : SearchIcon
-        }
+        leading={loading ? <Spinner className="size-4" /> : SearchIcon}
         aria-controls={listId}
         aria-expanded={showResults}
       />
@@ -174,8 +195,23 @@ export function TrainerSearch({
             : 'mt-3 overflow-hidden rounded-lg border border-line bg-surface',
         )}
       >
-        {showResults && results}
+        {showResults &&
+          (loading ? (
+            <p className="flex items-center gap-2 p-4 text-sm text-ink-muted">
+              <Spinner className="size-4" />
+              Finding trainers…
+            </p>
+          ) : (
+            results
+          ))}
       </div>
+      {layout === 'inline' && !hasQuery && (
+        <div className="trainer-search-empty">
+          <Icon name="search" />
+          <p>Who’s on your radar?</p>
+          <span>Enter a username above to find your fellow collectors.</span>
+        </div>
+      )}
     </div>
   )
 }

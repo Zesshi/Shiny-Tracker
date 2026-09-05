@@ -7,9 +7,10 @@ import { useAuth } from '@/components/auth-provider'
 import { useDex } from '@/hooks/use-dex'
 import { DexToolbar } from '@/components/dex/dex-toolbar'
 import { DexList } from '@/components/dex/dex-list'
+import { CollectionOverview } from '@/components/dex/collection-overview'
+import { Icon } from '@/components/icon'
 import { GenerationSectionSkeleton } from '@/components/dex/generation-section'
 import { dataErrorMessage } from '@/lib/errors'
-import { TOTAL_POKEMON } from '@/lib/gens'
 import type { Catch, Profile } from '@/lib/types'
 import {
   Badge,
@@ -20,7 +21,6 @@ import {
   ErrorState,
   LinkButton,
   PageHeader,
-  Progress,
 } from '@/components/ui'
 
 type PublicProfile = Pick<Profile, 'id' | 'username' | 'is_public'>
@@ -67,21 +67,27 @@ export default function PublicProfilePage() {
       return
     }
 
-    setState({ kind: 'ready', profile })
-
     const { data: rows, error: catchesError } = await supabase
       .from('catches')
       .select('user_id,pokemon_id,caught_shiny')
       .eq('user_id', profile.id)
       .returns<Catch[]>()
 
-    // A private dex returns no rows under RLS rather than an error; either way
-    // an empty list is a valid state, so this never blocks the page.
+    // A private dex normally returns no rows under RLS. A request failure
+    // must not look like a successfully loaded, empty collection.
     if (catchesError) {
-      dataErrorMessage(catchesError, '', 'profile')
       setCatches([])
+      setState({
+        kind: 'error',
+        message: dataErrorMessage(
+          catchesError,
+          'We could not load this collection. Please try again.',
+          'profile',
+        ),
+      })
     } else {
       setCatches(rows ?? [])
+      setState({ kind: 'ready', profile })
     }
   }, [uname])
 
@@ -143,26 +149,36 @@ export default function PublicProfilePage() {
   const { profile } = state
   const isOwner = viewer?.id === profile.id
   const locked = !profile.is_public && !isOwner
-  const pct = Math.round((dex.caughtCount / TOTAL_POKEMON) * 100)
 
   return (
-    <Container>
-      <PageHeader
-        title={`@${profile.username}`}
-        description={
-          locked
-            ? 'This trainer keeps their dex private.'
-            : `${dex.caughtCount} of ${TOTAL_POKEMON} shinies caught — ${pct}% complete.`
-        }
-        actions={
+    <div className="page-container">
+      <div className="page-heading profile-heading">
+        <div className="profile-identity">
+          <div className="profile-avatar" aria-hidden="true">
+            {profile.username?.[0]?.toUpperCase() ?? 'T'}
+          </div>
+          <div>
+            <p className="eyebrow">TRAINER FIELD JOURNAL</p>
+            <h1>@{profile.username}</h1>
+            <p>
+              {locked
+                ? 'This trainer keeps their collection private.'
+                : 'A collection of one-in-thousands moments.'}
+            </p>
+          </div>
+        </div>
+        <div className="profile-actions">
           <>
             {!profile.is_public && (
-              <Badge tone="neutral">{isOwner ? 'Private' : 'Private profile'}</Badge>
-            )}
-            {!locked && (
-              <Badge tone={dex.caughtCount > 0 ? 'shine' : 'neutral'}>
-                {dex.caughtCount}/{TOTAL_POKEMON}
+              <Badge tone="neutral">
+                {isOwner ? 'Private' : 'Private profile'}
               </Badge>
+            )}
+            {profile.is_public && (
+              <span className="quiet-badge">
+                <Icon name="globe" />
+                Public collection
+              </span>
             )}
             {isOwner && (
               <LinkButton href="/" variant="secondary" size="sm">
@@ -170,23 +186,21 @@ export default function PublicProfilePage() {
               </LinkButton>
             )}
           </>
-        }
-      />
+        </div>
+      </div>
 
       {locked ? (
         <Card padding="lg" className="mb-12">
+          <Icon name="lock" className="mb-4 text-ink-subtle" />
           <p className="text-sm text-ink-muted">
             @{profile.username} has not made their shiny dex public.
           </p>
         </Card>
       ) : (
         <>
-          <Progress
-            value={dex.caughtCount}
-            max={TOTAL_POKEMON}
-            tone="shine"
-            label={`Completion: ${dex.caughtCount} of ${TOTAL_POKEMON}`}
-            className="mb-5"
+          <CollectionOverview
+            caughtCount={dex.caughtCount}
+            generations={dex.generations}
           />
 
           <DexToolbar
@@ -196,6 +210,7 @@ export default function PublicProfilePage() {
             onQueryChange={dex.setQuery}
             totalMatches={dex.totalMatches}
             isFiltering={dex.isFiltering}
+            caughtCount={dex.caughtCount}
           />
 
           <div className="pb-12">
@@ -206,10 +221,14 @@ export default function PublicProfilePage() {
               isCaught={dex.isCaught}
               isFiltering={dex.isFiltering}
               totalMatches={dex.totalMatches}
+              onReset={() => {
+                dex.setQuery('')
+                dex.setFilter('all')
+              }}
             />
           </div>
         </>
       )}
-    </Container>
+    </div>
   )
 }

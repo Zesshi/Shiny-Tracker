@@ -12,6 +12,8 @@ export type DexListProps = {
   totalMatches: number
   /** Omit to render the whole list read-only. */
   onTogglePokemon?: (pokemonId: number) => void
+  pendingIds?: ReadonlySet<number>
+  onReset?: () => void
 }
 
 /**
@@ -27,6 +29,8 @@ export function DexList({
   isFiltering,
   totalMatches,
   onTogglePokemon,
+  pendingIds,
+  onReset,
 }: DexListProps) {
   if (generations.length === 0) {
     return (
@@ -41,27 +45,37 @@ export function DexList({
     return (
       <EmptyState
         title="No Pokémon found"
-        description="Try a different name or dex number, or switch the filter back to All."
+        description="Try a different name or dex number, or explore your full collection."
+        action={
+          onReset && (
+            <button type="button" className="empty-reset" onClick={onReset}>
+              Clear filters
+            </button>
+          )
+        }
       />
     )
   }
 
   return (
     <>
-      {generations.map(view => (
-        <GenerationSection
-          key={view.gen.key}
-          gen={view.gen}
-          visible={view.visible}
-          have={view.have}
-          total={view.total}
-          open={view.open}
-          onToggle={() => toggleGen(view.gen.key)}
-          isCaught={isCaught}
-          onTogglePokemon={onTogglePokemon}
-          isFiltering={isFiltering}
-        />
-      ))}
+      {generations
+        .filter((view) => !isFiltering || view.visible.length > 0)
+        .map((view) => (
+          <GenerationSection
+            key={view.gen.key}
+            gen={view.gen}
+            visible={view.visible}
+            have={view.have}
+            total={view.total}
+            open={view.open}
+            onToggle={() => toggleGen(view.gen.key)}
+            isCaught={isCaught}
+            onTogglePokemon={onTogglePokemon}
+            isFiltering={isFiltering}
+            pendingIds={pendingIds}
+          />
+        ))}
     </>
   )
 }

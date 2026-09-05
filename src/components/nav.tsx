@@ -5,109 +5,159 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { cn } from '@/lib/cn'
 import { useAuth } from '@/components/auth-provider'
+import { Icon, type IconName } from '@/components/icon'
 import { TrainerSearch } from '@/components/trainer-search'
 import { Spinner } from '@/components/ui'
+import { GENS, TOTAL_POKEMON } from '@/lib/gens'
 
-const NAV_LINKS = [
-  { href: '/', label: 'My dex' },
-  { href: '/search', label: 'Trainers' },
-  { href: '/settings', label: 'Settings' },
-] as const
+const NAV_LINKS: { href: string; label: string; icon: IconName }[] = [
+  { href: '/', label: 'My collection', icon: 'grid' },
+  { href: '/search', label: 'Discover trainers', icon: 'users' },
+  { href: '/settings', label: 'Settings', icon: 'settings' },
+]
 
-/**
- * Application header.
- *
- * Hidden for signed-out visitors, matching the original behaviour. It renders
- * nothing at all (rather than a skeleton) while the session resolves, so the
- * signed-out /login screen never flashes a header.
- */
+export function Brand() {
+  return (
+    <Link href="/" className="brand-lockup" aria-label="Shiny Tracker home">
+      <Image
+        src="/icon-192.png"
+        alt=""
+        width={38}
+        height={38}
+        unoptimized
+        priority
+      />
+      <span>
+        shiny<span className="brand-word">tracker</span>
+        <small>Collector’s companion</small>
+      </span>
+    </Link>
+  )
+}
+
 export default function Nav() {
-  const { status } = useAuth()
+  const { status, user } = useAuth()
   const pathname = usePathname()
   const [signingOut, setSigningOut] = useState(false)
-
-  if (status !== 'authenticated') return null
+  const [signOutError, setSignOutError] = useState(false)
+  if (pathname === '/login' || status === 'loading') return null
+  if (status !== 'authenticated')
+    return (
+      <header className="public-nav">
+        <Brand />
+        <Link href="/login" className="text-sm text-brand">
+          Sign in <span aria-hidden="true">↗</span>
+        </Link>
+      </header>
+    )
 
   async function signOut() {
     setSigningOut(true)
+    setSignOutError(false)
     try {
-      await supabase.auth.signOut()
-    } finally {
-      // Full reload so no signed-in state survives in memory.
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        setSignOutError(true)
+        return
+      }
       window.location.href = '/login'
+    } catch {
+      setSignOutError(true)
+    } finally {
+      setSigningOut(false)
     }
   }
 
+  const current =
+    NAV_LINKS.find((link) => link.href === pathname)?.label ??
+    'Trainer collection'
   return (
-    <header className="sticky top-0 z-40 h-(--spacing-header) border-b border-line bg-canvas/90 backdrop-blur">
-      <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4 sm:px-6">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-hover"
-        >
-          <Image
-            src="/icon-192.png"
-            alt=""
-            width={28}
-            height={28}
-            className="rounded-md"
-            priority
-          />
-          <span className="hidden text-sm font-bold tracking-tight text-ink sm:inline">
-            Shiny Tracker
-          </span>
-          <span className="sr-only">Shiny Tracker — home</span>
-        </Link>
-
-        <nav aria-label="Main" className="flex items-center gap-0.5">
-          {NAV_LINKS.map(link => {
-            const active =
-              link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'rounded-md px-2.5 py-1.5 text-sm font-medium sm:px-3',
-                  'transition-colors duration-(--transition-fast)',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-hover',
-                  active
-                    ? 'bg-chip text-ink'
-                    : 'text-ink-muted hover:bg-surface-hover hover:text-ink',
-                )}
-              >
-                {link.label}
-              </Link>
-            )
-          })}
+    <>
+      <aside className="app-sidebar">
+        <Brand />
+        <p className="eyebrow nav-label">YOUR FIELD JOURNAL</p>
+        <nav aria-label="Main" className="main-nav">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`nav-link ${pathname === link.href ? 'is-active' : ''}`}
+              aria-current={pathname === link.href ? 'page' : undefined}
+            >
+              <Icon name={link.icon} />
+              <span>{link.label}</span>
+              {pathname === link.href && <span className="nav-active-dot" />}
+            </Link>
+          ))}
         </nav>
-
-        <div className="ml-auto flex items-center gap-2">
-          {/* Trainer lookup is available from anywhere on wider screens; on
-              small screens the Trainers nav link covers the same ground. */}
-          <TrainerSearch className="hidden w-56 lg:block" />
-
+        <div className="sidebar-index">
+          <p className="eyebrow">NATIONAL POKÉDEX</p>
+          <p className="sidebar-dex-range">
+            0001 <span>—</span> {TOTAL_POKEMON}
+          </p>
+          <p>{GENS.length} regions. One collection.</p>
+        </div>
+        <div className="sidebar-account">
+          <div className="account-avatar" aria-hidden="true">
+            {user?.email?.[0]?.toUpperCase() ?? 'T'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Your account</p>
+            <p className="truncate text-xs text-ink-muted">{user?.email}</p>
+          </div>
           <button
             type="button"
-            onClick={signOut}
+            className="icon-button"
+            aria-label={signingOut ? 'Signing out' : 'Sign out'}
+            title="Sign out"
             disabled={signingOut}
-            className={cn(
-              'inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-line px-3',
-              'text-sm font-medium text-ink-muted',
-              'transition-colors duration-(--transition-fast)',
-              'hover:bg-surface-hover hover:text-ink',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-hover',
-              'disabled:cursor-not-allowed disabled:opacity-55',
-            )}
+            onClick={signOut}
           >
-            {signingOut && <Spinner className="size-3.5" />}
-            {signingOut ? 'Signing out…' : 'Log out'}
+            {signingOut ? (
+              <Spinner className="size-4" />
+            ) : (
+              <Icon name="logout" />
+            )}
           </button>
         </div>
-      </div>
-    </header>
+        {signOutError && (
+          <p role="alert" className="p-3 text-sm text-danger">
+            Could not sign out. Please try again.
+          </p>
+        )}
+      </aside>
+      <header className="app-topbar">
+        <div className="breadcrumb">
+          <span>Field journal</span>
+          <Icon name="chevron" />
+          <span>{current}</span>
+        </div>
+        <div className="topbar-mobile-brand">
+          <Brand />
+        </div>
+        <div className="topbar-actions">
+          <TrainerSearch className="hidden w-56 xl:block" />
+          <span className="edition-label">
+            <Icon name="sparkles" /> National shiny dex
+          </span>
+        </div>
+        <button
+          type="button"
+          className="mobile-signout icon-button"
+          title="Sign out"
+          aria-label="Sign out"
+          disabled={signingOut}
+          onClick={signOut}
+        >
+          <Icon name="logout" />
+        </button>
+      </header>
+      {signOutError && (
+        <p role="alert" className="mobile-signout-error">
+          Could not sign out. Please try again.
+        </p>
+      )}
+    </>
   )
 }

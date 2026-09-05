@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/auth-provider'
 import { authErrorMessage, dataErrorMessage } from '@/lib/errors'
 import type { Profile } from '@/lib/types'
+import { Icon } from '@/components/icon'
 import {
   Alert,
   Button,
@@ -15,7 +16,6 @@ import {
   ErrorState,
   Input,
   LinkButton,
-  PageHeader,
   PageLoading,
   Spinner,
 } from '@/components/ui'
@@ -98,7 +98,11 @@ export default function Settings() {
       if (lookupErr) {
         setProfileFeedback({
           tone: 'error',
-          text: dataErrorMessage(lookupErr, 'Could not check that username.', 'settings'),
+          text: dataErrorMessage(
+            lookupErr,
+            'Could not check that username.',
+            'settings',
+          ),
         })
         return
       }
@@ -115,7 +119,11 @@ export default function Settings() {
       if (error) {
         setProfileFeedback({
           tone: 'error',
-          text: dataErrorMessage(error, 'Your changes could not be saved.', 'settings'),
+          text: dataErrorMessage(
+            error,
+            'Your changes could not be saved.',
+            'settings',
+          ),
         })
         return
       }
@@ -143,7 +151,10 @@ export default function Settings() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPass })
       if (error) {
-        setPassFeedback({ tone: 'error', text: authErrorMessage(error, 'password') })
+        setPassFeedback({
+          tone: 'error',
+          text: authErrorMessage(error, 'password'),
+        })
         return
       }
       setPassFeedback({ tone: 'success', text: 'Password updated.' })
@@ -164,20 +175,28 @@ export default function Settings() {
   }
 
   const profileHref = profile?.username ? `/u/${profile.username}` : null
+  const profileChanged =
+    username.trim().toLowerCase() !== profile?.username ||
+    isPublic !== profile?.is_public
 
   return (
-    <Container width="md">
-      <PageHeader
-        title="Settings"
-        description="Manage your public profile and account security."
-        actions={
-          profileHref && (
+    <div className="page-container settings-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">MAKE YOURSELF AT HOME</p>
+          <h1>
+            Account settings<span className="text-brand">.</span>
+          </h1>
+          <p>Your trainer identity, your privacy, your peace of mind.</p>
+        </div>
+        <div>
+          {profileHref && (
             <LinkButton href={profileHref} variant="secondary" size="sm">
               View @{profile?.username}
             </LinkButton>
-          )
-        }
-      />
+          )}
+        </div>
+      </div>
 
       {loading ? (
         <PageLoading label="Loading your profile" />
@@ -191,14 +210,22 @@ export default function Settings() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-4 pb-12">
-          <Card padding="lg">
+        <div className="settings-grid">
+          <Card padding="lg" className="settings-card">
+            <div className="settings-section-label">
+              <Icon name="users" />
+              <span>TRAINER IDENTITY</span>
+            </div>
             <CardHeader
-              title="Profile"
+              title="Your public profile"
               description="Your username is how other trainers find you."
             />
 
-            <form onSubmit={saveProfile} className="mt-5 flex flex-col gap-4" noValidate>
+            <form
+              onSubmit={saveProfile}
+              className="mt-5 flex flex-col gap-4"
+              noValidate
+            >
               <div>
                 <p className="text-sm font-medium text-ink-muted">Email</p>
                 <p className="mt-1.5 truncate rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink-muted">
@@ -215,22 +242,39 @@ export default function Settings() {
                 spellCheck={false}
                 hint="Lowercase letters, numbers and underscore."
                 error={usernameError}
-                onChange={e => setUsername(e.target.value)}
+                disabled={saving}
+                onChange={(e) => {
+                  setUsername(e.target.value)
+                  setProfileFeedback(null)
+                  setUsernameError(undefined)
+                }}
               />
 
-              <Checkbox
-                label="Public profile"
-                hint="Other trainers can view your shiny dex at your profile URL."
-                checked={isPublic}
-                onChange={e => setIsPublic(e.target.checked)}
-              />
+              <div className="visibility-setting">
+                <Checkbox
+                  label="Make my collection public"
+                  hint="Other trainers can view your shiny dex at your profile URL."
+                  checked={isPublic}
+                  disabled={saving}
+                  onChange={(e) => {
+                    setIsPublic(e.target.checked)
+                    setProfileFeedback(null)
+                  }}
+                />
+              </div>
 
               {profileFeedback && (
-                <Alert tone={profileFeedback.tone}>{profileFeedback.text}</Alert>
+                <Alert tone={profileFeedback.tone}>
+                  {profileFeedback.text}
+                </Alert>
               )}
 
               <div>
-                <Button type="submit" variant="primary" disabled={saving}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={saving || !profileChanged}
+                >
                   {saving && <Spinner className="size-4" />}
                   {saving ? 'Saving…' : 'Save changes'}
                 </Button>
@@ -238,7 +282,11 @@ export default function Settings() {
             </form>
           </Card>
 
-          <Card padding="lg">
+          <Card padding="lg" className="settings-card">
+            <div className="settings-section-label">
+              <Icon name="lock" />
+              <span>ACCOUNT SECURITY</span>
+            </div>
             <CardHeader
               title="Change password"
               description="You will stay signed in on this device."
@@ -256,7 +304,8 @@ export default function Settings() {
                 autoComplete="new-password"
                 placeholder="Minimum 6 characters"
                 error={passErrors.newPass}
-                onChange={e => setNewPass(e.target.value)}
+                disabled={passSaving}
+                onChange={(e) => setNewPass(e.target.value)}
               />
               <Input
                 label="Confirm new password"
@@ -265,7 +314,8 @@ export default function Settings() {
                 autoComplete="new-password"
                 placeholder="Re-enter your new password"
                 error={passErrors.newPass2}
-                onChange={e => setNewPass2(e.target.value)}
+                disabled={passSaving}
+                onChange={(e) => setNewPass2(e.target.value)}
               />
 
               {passFeedback && (
@@ -282,6 +332,11 @@ export default function Settings() {
           </Card>
         </div>
       )}
-    </Container>
+      <p className="settings-note">
+        <Icon name="lock" />
+        Your email is used for sign-in and is not displayed on your public
+        collection.
+      </p>
+    </div>
   )
 }

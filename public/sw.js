@@ -8,17 +8,18 @@
  * Bump the version suffix whenever the shell changes so clients pick up the
  * new build instead of serving a stale document from cache.
  */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const STATIC = `static-${VERSION}`;
 const DATA = `data-${VERSION}`;
-const SPRITES = `sprites-${VERSION}`;
+// Preserve existing immutable sprites when only the UI shell changes.
+const SPRITES = 'sprites-v4';
 
 /* Only the entry document and the manifest are precached.
  *
  * Generation banners used to be listed here individually. They are cached on
  * first view by the same-origin handler below instead, which means:
  *   - adding a generation needs no change to this file
- *   - a missing /gen/<key>.jpg can no longer fail the whole install
+ *   - a missing /gen/<key>.webp can no longer fail the whole install
  *     (cache.addAll rejects if any single entry 404s)
  *   - install no longer blocks on ~490 KB of artwork
  * A generation with no artwork falls back to a CSS gradient (see globals.css).

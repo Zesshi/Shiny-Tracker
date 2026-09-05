@@ -7,7 +7,10 @@ import type { Catch } from '@/lib/types'
 
 export type DexFilter = 'all' | 'missing' | 'caught'
 
-export const DEX_FILTER_OPTIONS: readonly { value: DexFilter; label: string }[] = [
+export const DEX_FILTER_OPTIONS: readonly {
+  value: DexFilter
+  label: string
+}[] = [
   { value: 'all', label: 'All' },
   { value: 'missing', label: 'Missing' },
   { value: 'caught', label: 'Caught' },
@@ -17,7 +20,7 @@ function matchesQuery(p: Pokemon, needle: string): boolean {
   if (!needle) return true
   return (
     p.name.toLowerCase().includes(needle) ||
-    p.id.toString() === needle.replace('#', '')
+    (/^#?\d+$/.test(needle) && p.id === Number(needle.replace('#', '')))
   )
 }
 
@@ -47,7 +50,7 @@ export function useDex(catches: readonly Catch[]) {
   const defaultOpen = useMemo(
     () =>
       Object.fromEntries(
-        GENS.map(g => [g.key, g.key === DEFAULT_OPEN_GEN]),
+        GENS.map((g) => [g.key, g.key === DEFAULT_OPEN_GEN]),
       ) as Record<string, boolean>,
     [],
   )
@@ -89,7 +92,7 @@ export function useDex(catches: readonly Catch[]) {
       result[g.key] =
         filter === 'all' && !needle
           ? (all as Pokemon[])
-          : all.filter(p => {
+          : all.filter((p) => {
               const caught = caughtIds.has(p.id)
               const passesFilter =
                 filter === 'all' ? true : filter === 'caught' ? caught : !caught
@@ -124,12 +127,12 @@ export function useDex(catches: readonly Catch[]) {
   }, [needle, defaultOpen])
 
   const toggleGen = useCallback((key: string) => {
-    setOpen(prev => ({ ...prev, [key]: !prev[key] }))
+    setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
   const generations: GenerationView[] = useMemo(
     () =>
-      GENS.map(gen => ({
+      GENS.map((gen) => ({
         gen,
         visible: visibleByGen[gen.key] ?? [],
         have: haveByGen[gen.key] ?? 0,

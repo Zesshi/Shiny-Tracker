@@ -1,35 +1,46 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRequireAuth } from '@/components/auth-provider'
 import { useDex } from '@/hooks/use-dex'
 import { DexToolbar } from '@/components/dex/dex-toolbar'
 import { DexList } from '@/components/dex/dex-list'
+import { CollectionOverview } from '@/components/dex/collection-overview'
+import { Icon } from '@/components/icon'
 import { GenerationSectionSkeleton } from '@/components/dex/generation-section'
 import { enqueue, flushQueue, listenOnline } from '@/lib/offline-queue'
 import { dataErrorMessage } from '@/lib/errors'
 import { TOTAL_POKEMON } from '@/lib/gens'
 import type { Catch } from '@/lib/types'
-import {
-  Alert,
-  Badge,
-  Button,
-  Container,
-  ErrorState,
-  PageHeader,
-  PageLoading,
-  Progress,
-} from '@/components/ui'
+import { Button, Container, ErrorState, PageLoading } from '@/components/ui'
 
 export default function Home() {
   const { status, user } = useRequireAuth()
   const userId = user?.id
 
   const [catches, setCatches] = useState<Catch[]>([])
+  const catchesRef = useRef<Catch[]>([])
+  const updateCatches = useCallback(
+    (update: (previous: Catch[]) => Catch[]) => {
+      const next = update(catchesRef.current)
+      catchesRef.current = next
+      setCatches(next)
+    },
+    [],
+  )
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [writeNotice, setWriteNotice] = useState<string | null>(null)
+  const pendingRef = useRef(new Set<number>())
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<number>>(new Set())
+  const [savedNotice, setSavedNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!savedNotice) return
+    const timer = setTimeout(() => setSavedNotice(null), 3500)
+    return () => clearTimeout(timer)
+  }, [savedNotice])
 
   /* --- Load my catches (one request per page load, unchanged) ----------- */
   const loadCatches = useCallback(async () => {
@@ -44,12 +55,14 @@ export default function Home() {
       .returns<Catch[]>()
 
     if (error) {
-      setLoadError(dataErrorMessage(error, 'We could not load your shiny dex.', 'dex'))
+      setLoadError(
+        dataErrorMessage(error, 'We could not load your shiny dex.', 'dex'),
+      )
     } else {
-      setCatches(data ?? [])
+      updateCatches(() => data ?? [])
     }
     setLoading(false)
-  }, [userId])
+  }, [userId, updateCatches])
 
   useEffect(() => {
     void loadCatches()
@@ -67,64 +80,95 @@ export default function Home() {
   /* --- Toggle a shiny --------------------------------------------------- */
   const toggleMine = useCallback(
     async (pokemonId: number) => {
-      if (!userId) return
+      if (!userId || pendingRef.current.has(pokemonId)) return
+      pendingRef.current.add(pokemonId)
+      setPendingIds(new Set(pendingRef.current))
       setWriteNotice(null)
+      setSavedNotice(null)
 
-      const existing = catches.find(
-        c => c.user_id === userId && c.pokemon_id === pokemonId,
+      const existing = catchesRef.current.find(
+        (c) => c.user_id === userId && c.pokemon_id === pokemonId,
       )
 
       // Optimistic update first so the grid responds immediately.
-      const previous = catches
       const nextCaught = !existing?.caught_shiny
-      setCatches(prev =>
+      updateCatches((prev) =>
         nextCaught
           ? existing
-            ? prev.map(c =>
+            ? prev.map((c) =>
                 c.user_id === userId && c.pokemon_id === pokemonId
                   ? { ...c, caught_shiny: true }
                   : c,
               )
-            : [...prev, { user_id: userId, pokemon_id: pokemonId, caught_shiny: true }]
+            : [
+                ...prev,
+                { user_id: userId, pokemon_id: pokemonId, caught_shiny: true },
+              ]
           : prev.filter(
-              c => !(c.user_id === userId && c.pokemon_id === pokemonId),
+              (c) => !(c.user_id === userId && c.pokemon_id === pokemonId),
             ),
       )
 
-      const { error } = existing?.caught_shiny
-        ? await supabase
-            .from('catches')
-            .delete()
-            .eq('user_id', userId)
-            .eq('pokemon_id', pokemonId)
-        : existing
+      try {
+        const { error } = existing?.caught_shiny
           ? await supabase
               .from('catches')
-              .update({ caught_shiny: true })
+              .delete()
               .eq('user_id', userId)
               .eq('pokemon_id', pokemonId)
-          : await supabase
-              .from('catches')
-              .insert({ user_id: userId, pokemon_id: pokemonId, caught_shiny: true })
+          : existing
+            ? await supabase
+                .from('catches')
+                .update({ caught_shiny: true })
+                .eq('user_id', userId)
+                .eq('pokemon_id', pokemonId)
+            : await supabase
+                .from('catches')
+                .insert({
+                  user_id: userId,
+                  pokemon_id: pokemonId,
+                  caught_shiny: true,
+                })
 
-      if (!error) return
-
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        // Offline: keep the optimistic state and let the existing queue
-        // reconcile it when the connection comes back.
-        enqueue(pokemonId, nextCaught)
-        setWriteNotice(
-          'You are offline. This change is saved on your device and will sync automatically.',
+        if (error) throw error
+        setSavedNotice(
+          nextCaught
+            ? 'Shiny added to your collection.'
+            : 'Pokémon removed from your shiny collection.',
         )
-        return
-      }
+      } catch (error) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          // Offline: keep the optimistic state and let the existing queue
+          // reconcile it when the connection comes back.
+          try {
+            enqueue(pokemonId, nextCaught)
+            setWriteNotice(
+              'You are offline. This change is saved on your device and will sync automatically.',
+            )
+            return
+          } catch {
+            /* Device storage is unavailable: roll back below. */
+          }
+        }
 
-      setCatches(previous)
-      setWriteNotice(
-        dataErrorMessage(error, 'That change could not be saved. Please try again.', 'dex'),
-      )
+        // Roll back this entry only; other successful writes stay intact.
+        updateCatches((prev) => {
+          const rest = prev.filter((c) => c.pokemon_id !== pokemonId)
+          return existing ? [...rest, existing] : rest
+        })
+        setWriteNotice(
+          dataErrorMessage(
+            error,
+            'That change could not be saved. Please try again.',
+            'dex',
+          ),
+        )
+      } finally {
+        pendingRef.current.delete(pokemonId)
+        setPendingIds(new Set(pendingRef.current))
+      }
     },
-    [catches, userId],
+    [updateCatches, userId],
   )
 
   /* --- Render ----------------------------------------------------------- */
@@ -136,27 +180,24 @@ export default function Home() {
     )
   }
 
-  const pct = Math.round((dex.caughtCount / TOTAL_POKEMON) * 100)
-
   return (
-    <Container>
-      <PageHeader
-        title="Your shiny dex"
-        description={`${dex.caughtCount} of ${TOTAL_POKEMON} shinies caught — ${pct}% complete.`}
-        actions={
-          <Badge tone={dex.caughtCount > 0 ? 'shine' : 'neutral'}>
-            {dex.caughtCount}/{TOTAL_POKEMON}
-          </Badge>
-        }
-      />
-
-      <Progress
-        value={dex.caughtCount}
-        max={TOTAL_POKEMON}
-        tone="shine"
-        label={`Overall completion: ${dex.caughtCount} of ${TOTAL_POKEMON}`}
-        className="mb-5"
-      />
+    <div className="page-container">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">THE NATIONAL SHINY DEX</p>
+          <h1>
+            My collection<span className="text-shine">.</span>
+          </h1>
+          <p>Every encounter. Every sparkle. All in one place.</p>
+        </div>
+      </div>
+      {!loadError && (
+        <CollectionOverview
+          caughtCount={dex.caughtCount}
+          generations={dex.generations}
+          loading={loading}
+        />
+      )}
 
       <DexToolbar
         filter={dex.filter}
@@ -165,13 +206,8 @@ export default function Home() {
         onQueryChange={dex.setQuery}
         totalMatches={dex.totalMatches}
         isFiltering={dex.isFiltering}
+        caughtCount={loading || loadError ? undefined : dex.caughtCount}
       />
-
-      {writeNotice && (
-        <Alert tone="warning" className="mb-4">
-          {writeNotice}
-        </Alert>
-      )}
 
       <div className="pb-12">
         {loadError ? (
@@ -200,9 +236,38 @@ export default function Home() {
             isFiltering={dex.isFiltering}
             totalMatches={dex.totalMatches}
             onTogglePokemon={toggleMine}
+            pendingIds={pendingIds}
+            onReset={() => {
+              dex.setQuery('')
+              dex.setFilter('all')
+            }}
           />
         )}
       </div>
-    </Container>
+      <div className="collection-footer">
+        <span>National Pokédex · {TOTAL_POKEMON.toLocaleString()} Pokémon</span>
+        <span>A collection that’s uniquely yours.</span>
+      </div>
+      {(writeNotice || savedNotice) && (
+        <div
+          className={`write-toast ${writeNotice ? 'is-warning' : ''}`}
+          role={writeNotice ? 'alert' : 'status'}
+        >
+          <Icon name={writeNotice ? 'target' : 'check'} />
+          <span>{writeNotice || savedNotice}</span>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Dismiss notification"
+            onClick={() => {
+              setSavedNotice(null)
+              setWriteNotice(null)
+            }}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

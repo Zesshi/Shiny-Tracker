@@ -18,11 +18,12 @@ Only four fields are required:
 
 | Field    | Meaning                                                        |
 | -------- | -------------------------------------------------------------- |
-| `key`    | Stable id. Also the banner filename (`/gen/<key>.jpg`).          |
+| `key`    | Stable id. Also the banner filename (`/gen/<key>.webp`).          |
 | `region` | Region name shown next to the generation number.                 |
 | `start`  | First national-dex id, inclusive.                                |
 | `end`    | Last national-dex id, inclusive.                                 |
 | `hue`    | *Optional.* 0–360, tints the fallback banner. Derived if omitted.|
+| `bannerFocus` | *Optional.* Vertical focal point (0–100%) for shallow artwork crops; defaults to 36. |
 
 Everything else is derived automatically:
 
@@ -45,12 +46,15 @@ limit to keep in sync.
 
 ## 3. Add banner artwork (optional)
 
-Drop a JPG at `public/gen/<key>.jpg` — e.g. `public/gen/gen10.jpg`.
+Drop a WebP at `public/gen/<key>.webp` — e.g. `public/gen/gen10.webp`.
 
 **This is genuinely optional.** If the file is absent the banner falls back to a
 gradient derived from the generation's hue. It is not a broken image, and
-nothing throws. Keep artwork small (the existing banners are ~50 KB each) since
-they are served from Vercel's free-tier bandwidth.
+nothing throws. Keep artwork small (roughly 80–150 KB per panorama) since
+they are served from Vercel's free-tier bandwidth. The current artwork uses
+1440-pixel-wide WebP exports at quality 80; see [REGION-ARTWORK.md](REGION-ARTWORK.md)
+for the assets and exact generation prompts. Keep important scenery near the
+vertical center for shallow desktop crops and leave the left side quiet for text.
 
 ## That's it
 
